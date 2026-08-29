@@ -97,7 +97,7 @@ Information Leakage is the one-sentence test.
 |---|---|
 | Scaffold, manifest, README | landed |
 | `ward.md` + `/exorcist:ward` | landed — [verified on specdeck](docs/verification/ward-specdeck-2026-08-29.md) |
-| `/exorcist:exorcise` (changeset) | planned |
+| `/exorcist:exorcise` (changeset) | landed — [verified on specdeck](docs/verification/exorcise-specdeck-2026-08-29.md) |
 | `/exorcist:seance` + register schema | planned |
 | `/exorcist:exorcise <register>` | planned |
 | Marketplace registration | planned |
