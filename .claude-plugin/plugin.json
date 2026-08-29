@@ -1,0 +1,18 @@
+{
+  "name": "exorcist",
+  "description": "Aggressive simplification for LLM-generated code. A standing ward that keeps slop from taking root, a changeset pass that traces every hunk to the stated intent and reverts what does not belong, and a codebase séance that hunts pattern contention, dead code, duplicated helpers, and wrapper strata with tool receipts. Scored in concepts removed, never lines.",
+  "version": "0.1.0",
+  "author": {
+    "name": "Jacquard Labs"
+  },
+  "repository": "https://github.com/jacquardlabs/exorcist",
+  "license": "MIT",
+  "keywords": [
+    "simplification",
+    "refactoring",
+    "dead-code",
+    "code-quality",
+    "ai-slop",
+    "cleanup"
+  ]
+}

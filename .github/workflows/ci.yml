@@ -1,0 +1,49 @@
+name: CI
+
+on:
+  push:
+    branches: [main]
+  pull_request:
+
+jobs:
+  tests:
+    name: unit tests (Python ${{ matrix.python-version }})
+    runs-on: ubuntu-latest
+    strategy:
+      fail-fast: false
+      matrix:
+        # Contiguous from the 3.9 floor (stock macOS python3) to current: scripts/
+        # runs on whatever the host has, and a stdlib removal can land mid-range.
+        python-version: ['3.9', '3.10', '3.11', '3.12', '3.13', '3.14']
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-python@v5
+        with:
+          python-version: ${{ matrix.python-version }}
+      - name: Run tests
+        run: |
+          for t in tests/test_*.py; do
+            echo "== $t"
+            python3 "$t"
+          done
+
+  manifest:
+    name: plugin manifest
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-python@v5
+        with:
+          python-version: '3.13'
+      - run: python3 scripts/validate_plugin.py
+
+  lint:
+    name: ruff + version floor
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: astral-sh/setup-uv@v5
+      - name: Ruff
+        run: uv run --no-project --with ruff==0.16.0 ruff check scripts tests
+      - name: Runtime version floor for shipped scripts
+        run: uv run --no-project --with vermin==1.8.0 vermin --no-tips -t=3.9- scripts/
