@@ -35,3 +35,14 @@ uv run --no-project --with vermin==1.8.0 vermin --no-tips -t=3.9- scripts/
   A rule the model already follows is a sentence that costs attention and buys nothing.
 - **Verifiable gates over adjectives.** A rule is a check someone can run — a grep for
   callers, a diff stat — not a quality the reader is asked to feel.
+
+## Verifying a command headlessly
+
+```bash
+CLAUDE_CODE_PRINT_BG_WAIT_CEILING_MS=0 claude --plugin-dir . -p '/exorcist:seance' \
+  --permission-mode acceptEdits --allowedTools "Bash(git *)" "Bash(python3 *)" Read Glob Grep Task Agent Write
+```
+
+`--plugin-dir` loads the checkout without installing it. The ceiling variable matters:
+`-p` mode kills background subagents after 600s by default, and a séance's four lanes
+over a 20k-line repository take longer than that.

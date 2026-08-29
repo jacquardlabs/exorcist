@@ -63,16 +63,20 @@ nothing in the intent reaches, rewrites what the ward forbids, and skips with a 
 anything whose blast radius leaves the diff. Cosmetic cleanup — naming, nesting,
 redundant state — is left to Claude Code's built-in `/simplify`, which already does it.
 
-**Séance** reads a repository at a ref and never writes to it. Phase 0 shells out to a
-zero-config tool core — ast-grep, knip or ruff, jscpd, scc, dependency-cruiser or tach
-— for receipts: call-site counts, unreferenced exports, clone pairs, size and churn.
-Phase 1 fans out over the lanes no deterministic tool owns: **pattern contention** (two
-ways to do one job — count the call sites, name the winner, size the migration),
-**dead code** the tools could not prove, **duplicated helpers** written independently
-rather than pasted, and **wrapper strata** (pass-throughs, single-caller indirection).
-Out comes a register: each ghost with its evidence, blast radius, the concepts it
-retires, and a one-line banishment. The register is the approval surface — edit it,
-delete what you want kept, and hand it back.
+**Séance** reads a repository at a ref, from a detached worktree, and never writes to
+it. Phase 0 runs a zero-config tool core over the tree for receipts — stdlib size and
+churn always; ast-grep pass-through rules, jscpd clones, knip (JS/TS) or ruff (Python),
+dependency-cruiser cycles (JS/TS), scc when installed — fetching each through `npx` or
+`uvx` when it is not on PATH, and naming every tool it could not run. Phase 1 fans out
+over the lanes no deterministic tool owns: **pattern contention** (two ways to do one
+job — count the call sites, name the survivor, size the migration), **dead code** the
+tools could not prove, **duplicated helpers** written independently rather than
+pasted, and **wrapper strata** (pass-throughs, single-caller indirection, interfaces
+with one implementation). Out comes a register under `docs/exorcist/seance-<date>/`:
+each ghost with its evidence, blast radius, the concepts it retires, and a one-line
+banishment, ranked by concepts retired. The register is the approval surface — set
+`status` to `approved` on what should go, delete what should stay, and hand it back.
+The schema is in [`reference/register.md`](reference/register.md).
 
 **Salting the threshold** runs inside both acting mounts. For every transform,
 default, or validation at a point of use, trace the value to where it enters the
@@ -98,7 +102,7 @@ Information Leakage is the one-sentence test.
 | Scaffold, manifest, README | landed |
 | `ward.md` + `/exorcist:ward` | landed — [verified on specdeck](docs/verification/ward-specdeck-2026-08-29.md) |
 | `/exorcist:exorcise` (changeset) | landed — [verified on specdeck](docs/verification/exorcise-specdeck-2026-08-29.md) |
-| `/exorcist:seance` + register schema | planned |
+| `/exorcist:seance` + register schema | landed — [verified on specdeck](docs/verification/seance-specdeck-2026-08-29.md) |
 | `/exorcist:exorcise <register>` | planned |
 | Marketplace registration | planned |
 

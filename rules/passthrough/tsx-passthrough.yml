@@ -1,0 +1,10 @@
+id: tsx-passthrough
+language: tsx
+severity: info
+message: pass-through function — body is one call with the parameters handed on
+rule:
+  any:
+    - pattern: function $NAME($$$PARAMS) { return $CALLEE($$$ARGS) }
+    - pattern: export function $NAME($$$PARAMS) { return $CALLEE($$$ARGS) }
+    - pattern: const $NAME = ($$$PARAMS) => $CALLEE($$$ARGS)
+    - pattern: export const $NAME = ($$$PARAMS) => $CALLEE($$$ARGS)
