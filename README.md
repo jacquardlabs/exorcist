@@ -96,7 +96,7 @@ Information Leakage is the one-sentence test.
 | Deliverable | State |
 |---|---|
 | Scaffold, manifest, README | landed |
-| `ward.md` + `/exorcist:ward` | planned |
+| `ward.md` + `/exorcist:ward` | landed — [verified on specdeck](docs/verification/ward-specdeck-2026-08-29.md) |
 | `/exorcist:exorcise` (changeset) | planned |
 | `/exorcist:seance` + register schema | planned |
 | `/exorcist:exorcise <register>` | planned |
