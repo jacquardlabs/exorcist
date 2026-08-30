@@ -1,0 +1,41 @@
+{
+ "files": 8,
+ "lines": 1451,
+ "by_extension": {
+  ".py": 1451
+ },
+ "largest": [
+  {
+   "file": "scripts/receipts.py",
+   "lines": 521
+  },
+  {
+   "file": "scripts/register.py",
+   "lines": 288
+  },
+  {
+   "file": "scripts/tripwires.py",
+   "lines": 207
+  },
+  {
+   "file": "tests/test_tripwires.py",
+   "lines": 127
+  },
+  {
+   "file": "tests/test_register.py",
+   "lines": 102
+  },
+  {
+   "file": "scripts/validate_plugin.py",
+   "lines": 79
+  },
+  {
+   "file": "tests/test_receipts.py",
+   "lines": 68
+  },
+  {
+   "file": "tests/test_validate_plugin.py",
+   "lines": 59
+  }
+ ]
+}

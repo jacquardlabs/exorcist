@@ -1,0 +1,164 @@
+[
+  {
+    "lane": "duplicate",
+    "title": "eight agent prompts each carry the same ${CLAUDE_PLUGIN_ROOT} fallback",
+    "concepts": [
+      "agents/abstraction-hunter.md plugin-root fallback clause",
+      "agents/dead-code.md plugin-root fallback clause",
+      "agents/deletion-scout.md plugin-root fallback clause",
+      "agents/duplicate-helpers.md plugin-root fallback clause",
+      "agents/intent-tracer.md plugin-root fallback clause",
+      "agents/pattern-contention.md plugin-root fallback clause",
+      "agents/threshold-salter.md plugin-root fallback clause",
+      "agents/wrapper-strata.md plugin-root fallback clause"
+    ],
+    "survivor": "commands/seance.md:63 the lane-dispatch context (with commands/exorcise.md:63)",
+    "evidence": [
+      {"kind": "grep", "detail": "\"locate under `${CLAUDE_PLUGIN_ROOT}` with Glob if the bare path fails\" — 8 hits, one per agent: abstraction-hunter.md:57, dead-code.md:46, deletion-scout.md:46, duplicate-helpers.md:46, intent-tracer.md:39, pattern-contention.md:51, threshold-salter.md:46, wrapper-strata.md:52", "receipt": null},
+      {"kind": "trace", "detail": "the dispatch already resolves the root: this lane's prompt arrived as \"locate under /Users/bryan/Projects/exorcist\", i.e. commands/seance.md:63 substituted the path before the agent ran, so the per-agent fallback is dead text at the point of use", "receipt": null},
+      {"kind": "read", "detail": "commands/seance.md:60-63 and commands/exorcise.md:60-64 already enumerate what each lane is handed (root, ref, receipts dir, contract) — one more item is the entry point for this fact", "receipt": null},
+      {"kind": "read", "detail": "commands/ward.md:25 \"Locate it with Glob if the variable is unset\" is the same fact but at the boundary — the command is the resolver, nothing upstream can hand it a path; kept", "receipt": null}
+    ],
+    "sites": [
+      {"path": "agents/abstraction-hunter.md", "line": 57, "role": "banish"},
+      {"path": "agents/dead-code.md", "line": 46, "role": "banish"},
+      {"path": "agents/deletion-scout.md", "line": 46, "role": "banish"},
+      {"path": "agents/duplicate-helpers.md", "line": 46, "role": "banish"},
+      {"path": "agents/intent-tracer.md", "line": 39, "role": "banish"},
+      {"path": "agents/pattern-contention.md", "line": 51, "role": "banish"},
+      {"path": "agents/threshold-salter.md", "line": 46, "role": "banish"},
+      {"path": "agents/wrapper-strata.md", "line": 52, "role": "banish"},
+      {"path": "commands/seance.md", "line": 63, "role": "migrate"},
+      {"path": "commands/exorcise.md", "line": 63, "role": "migrate"},
+      {"path": "commands/ward.md", "line": 25, "role": "keep"}
+    ],
+    "blast_radius": {"files": 11, "callers": 8, "exported": false, "tests": 0},
+    "banishment": "have the two dispatch commands hand each lane the resolved absolute path of its contract file; drop the 8 \"locate under ${CLAUDE_PLUGIN_ROOT} with Glob\" clauses",
+    "confidence": "sourced",
+    "hold": null
+  },
+  {
+    "lane": "duplicate",
+    "title": "four tool wrappers each rewrite run-then-parse-JSON-stdout",
+    "concepts": [
+      "receipts._knip stdout JSON guard",
+      "receipts._ruff stdout JSON guard",
+      "receipts._depcruise stdout JSON guard",
+      "receipts._scc stdout JSON guard"
+    ],
+    "survivor": "scripts/receipts.py:127 run",
+    "evidence": [
+      {"kind": "grep", "detail": "`err or \"no JSON on stdout\"` — 4 identical returns at receipts.py:306, 327, 346, 372, each preceded by the same `if not out.strip().startswith(...)` and followed by `json.loads(out)`; the `code, out, err = run(argv, root, timeout)` line above them is identical too", "receipt": null},
+      {"kind": "read", "detail": "receipts.py:305-307 vs 371-373 differ only in the opener character '{' vs '['; json.loads accepts both, so the shared body needs no mode parameter", "receipt": null},
+      {"kind": "read", "detail": "receipts.py:260 is a fifth near-copy that swallows non-JSON into [] and still records ast-grep as `ran` rather than `failed` — left off sites deliberately; folding it in would switch its failure mode", "receipt": null},
+      {"kind": "tool", "detail": "jscpd reported 0 clone pairs at --min-tokens 50; these 3-line bodies sit below its floor, which is why the receipt is silent here", "receipt": "jscpd.json#clones"}
+    ],
+    "sites": [
+      {"path": "scripts/receipts.py", "line": 305, "role": "banish"},
+      {"path": "scripts/receipts.py", "line": 326, "role": "banish"},
+      {"path": "scripts/receipts.py", "line": 345, "role": "banish"},
+      {"path": "scripts/receipts.py", "line": 371, "role": "banish"},
+      {"path": "scripts/receipts.py", "line": 127, "role": "keep"}
+    ],
+    "blast_radius": {"files": 1, "callers": 4, "exported": false, "tests": 0},
+    "banishment": "extend `run` into a `run_json` that parses stdout or returns the failure tuple; drop the 4 startswith guards in _knip/_ruff/_depcruise/_scc",
+    "confidence": "sourced",
+    "hold": null
+  },
+  {
+    "lane": "duplicate",
+    "title": "knip's item shape (string or {name}) is known in four places",
+    "concepts": [
+      "receipts.py:311 inline knip item unwrap",
+      "receipts.py:315 inline knip item unwrap",
+      "receipts.py:316 inline knip item unwrap"
+    ],
+    "survivor": "scripts/receipts.py:296 _symbol",
+    "evidence": [
+      {"kind": "grep", "detail": "`isinstance(x, dict)` on a knip report item — 4 hits in one function's neighbourhood: receipts.py:297 (inside _symbol), 311, 315, 316", "receipt": null},
+      {"kind": "read", "detail": "receipts.py:315 and 316 are the byte-identical expression `x.get(\"name\") if isinstance(x, dict) else x`; _symbol:297-299 states the same fact and is already called from 312 and 313", "receipt": null},
+      {"kind": "read", "detail": "receipts.py:311 is the fourth, divergent copy — `x.get(\"name\", f) ... else f` falls back to the issue file rather than the item; role migrate, not banish, because the fallback must be made explicit at the call site", "receipt": null},
+      {"kind": "read", "detail": "the value enters at receipts.py:307 `data = json.loads(out)`; nothing between the parse and these four readers normalizes an item", "receipt": null}
+    ],
+    "sites": [
+      {"path": "scripts/receipts.py", "line": 315, "role": "banish"},
+      {"path": "scripts/receipts.py", "line": 316, "role": "banish"},
+      {"path": "scripts/receipts.py", "line": 311, "role": "migrate"},
+      {"path": "scripts/receipts.py", "line": 296, "role": "keep"}
+    ],
+    "blast_radius": {"files": 1, "callers": 3, "exported": false, "tests": 0},
+    "banishment": "normalize each knip issue item once where the report is parsed (one `_name` that _symbol also uses); drop the 3 inline isinstance re-derivations",
+    "confidence": "sourced",
+    "hold": null
+  },
+  {
+    "lane": "duplicate",
+    "title": "the ghost example and two field definitions live in both reference files, drifted",
+    "concepts": [
+      "reference/ghost.md:7-29 copy of the ghost example JSON",
+      "reference/ghost.md:40-41 restatement of \"concepts is the score\"",
+      "reference/ghost.md:42-45 restatement of the `hold` enum"
+    ],
+    "survivor": "reference/register.md:42 the Fields section",
+    "evidence": [
+      {"kind": "grep", "detail": "the same example ghost (\"two ways to read a TOML file\", specdeck lockfile/matrix) appears in 2 files — reference/ghost.md:7-29 and reference/register.md:15-38 — plus 2 field definitions (`concepts`, `hold`) stated in both", "receipt": null},
+      {"kind": "read", "detail": "the copies disagree: ghost.md:14 `\"concepts\": [\"matrix.load_toml\"]` vs register.md:21 `[\"lockfile._read_toml\", \"matrix.load_toml\"]` — register.md's copy lists its own survivor as something that stops existing, contradicting its own definition at register.md:51-52", "receipt": null},
+      {"kind": "read", "detail": "ghost.md:16 cites `jscpd.json#clones[2]`, register.md:25 cites `jscpd.json#duplicates[2]`; receipts.py:293 writes the key `clones`, so the surviving copy carries a receipt path that does not resolve", "receipt": "jscpd.json#clones"},
+      {"kind": "read", "detail": "ghost.md:3-5 already names the owner — \"register.py merge assigns id, status and rank; the lane supplies the rest, per reference/register.md\" — one sentence that makes the trimmed second example unnecessary", "receipt": null}
+    ],
+    "sites": [
+      {"path": "reference/ghost.md", "line": 7, "role": "banish"},
+      {"path": "reference/ghost.md", "line": 40, "role": "banish"},
+      {"path": "reference/register.md", "line": 21, "role": "migrate"},
+      {"path": "reference/register.md", "line": 25, "role": "migrate"},
+      {"path": "reference/register.md", "line": 42, "role": "keep"}
+    ],
+    "blast_radius": {"files": 2, "callers": 5, "exported": false, "tests": 0},
+    "banishment": "cut ghost.md to the lane-only rules plus a pointer at reference/register.md; fix register.md:21 (drop the survivor from concepts) and :25 (#duplicates → #clones)",
+    "confidence": "sourced",
+    "hold": null
+  },
+  {
+    "lane": "duplicate",
+    "title": "the ward's three-tier prior-shape search restated in two agent prompts",
+    "concepts": [
+      "agents/abstraction-hunter.md:32-37 copy of the three tiers",
+      "agents/duplicate-helpers.md:28-30 paraphrase of tiers 1-2"
+    ],
+    "survivor": "ward.md:20 Search before writing",
+    "evidence": [
+      {"kind": "grep", "detail": "\"stop at the first hit\" + the tier list — 2 files: ward.md:23-28 and abstraction-hunter.md:32-37; tiers 2 and 3 are byte-identical (\"The standard library or runtime.\" / \"A guarantee the framework already makes\")", "receipt": null},
+      {"kind": "read", "detail": "agents/duplicate-helpers.md:28-30 states tiers 1-2 in prose (\"check the stdlib and the project's own lib/ utils/ shared/ for an incumbent\") — a third statement of the same procedure", "receipt": null},
+      {"kind": "grep", "detail": "the companion two-instance rule is in 3 operative files: ward.md:40, agents/wrapper-strata.md:27, agents/abstraction-hunter.md:24 (README.md:115 and docs/proposal.md:54 are product prose, not procedure)", "receipt": null}
+    ],
+    "sites": [
+      {"path": "agents/abstraction-hunter.md", "line": 32, "role": "banish"},
+      {"path": "agents/duplicate-helpers.md", "line": 28, "role": "banish"},
+      {"path": "ward.md", "line": 20, "role": "keep"}
+    ],
+    "blast_radius": {"files": 3, "callers": 2, "exported": false, "tests": 0},
+    "banishment": "cite ward.md §\"Search before writing\" from abstraction-hunter step 2 and duplicate-helpers step 2; drop the two restatements of the tiers",
+    "confidence": "inferred",
+    "hold": null
+  },
+  {
+    "lane": "duplicate",
+    "title": "the TOML section-header scan is written twice inside analyze()",
+    "concepts": ["tripwires.py:148-151 second [section] scan"],
+    "survivor": "scripts/tripwires.py:133 the added-line section scan",
+    "evidence": [
+      {"kind": "grep", "detail": "`re.match(r\"\\s*\\[+([^\\]]+)\\]+\", content)` — 2 hits, tripwires.py:134 and 149; each sits under an identical `if _basename(path).endswith(\".toml\"):` and is followed by the identical `if header: toml_section = header.group(1).strip()`", "receipt": null},
+      {"kind": "read", "detail": "tripwires.py:133-136 (the `+` branch) and 148-151 (the context-line branch) are 4 byte-identical lines at the same indent; the only difference is the branch they sit in, so a helper needs no flag", "receipt": null},
+      {"kind": "read", "detail": "both copies are pinned by tests/test_tripwires.py:103 test_dependency_lines_by_manifest — DEPS_DIFF carries `+[tool.ruff]` (added branch) and context `[project]`/`[dependencies]` headers (space branch)", "receipt": null},
+      {"kind": "tool", "detail": "jscpd reported 0 clone pairs; a 4-line duplicate is below its 50-token floor", "receipt": "jscpd.json#clones"}
+    ],
+    "sites": [
+      {"path": "scripts/tripwires.py", "line": 148, "role": "banish"},
+      {"path": "scripts/tripwires.py", "line": 133, "role": "keep"}
+    ],
+    "blast_radius": {"files": 1, "callers": 1, "exported": false, "tests": 1},
+    "banishment": "extract `_toml_section(path, content, current)` and call it from both the added-line and context-line branches of analyze",
+    "confidence": "sourced",
+    "hold": null
+  }
+]

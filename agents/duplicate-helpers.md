@@ -43,10 +43,9 @@ each know separately.
 
 ## Output
 
-The array in `reference/ghost.md` (locate under `${CLAUDE_PLUGIN_ROOT}` with Glob if
-the bare path fails), `lane: "duplicate"`. `concepts` lists the copies that stop
-existing. `survivor` is required. `evidence` carries the receipt for clones and the
-grep counts for the rest.
+The array in `reference/ghost.md`, `lane: "duplicate"`. `concepts` lists the copies
+that stop existing. `survivor` is required. `evidence` carries the receipt for clones
+and the grep counts for the rest.
 
 **Your entire reply is the JSON array.** No prose before or after it, no code fence,
 no heading. A reply the command cannot parse is a lane that did not report.

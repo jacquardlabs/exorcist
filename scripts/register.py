@@ -2,7 +2,6 @@
 """Validate, rank, and render a séance register (reference/register.md).
 
     python3 register.py validate <register.json>
-    python3 register.py rank <register.json>          # rewrites rank in place, sorted
     python3 register.py render <register.json>        # markdown to stdout
     python3 register.py merge <out.json> <lane.json>... --repo R --ref SHA --receipts DIR
 
@@ -17,7 +16,7 @@ import json
 import re
 import sys
 from pathlib import Path
-from typing import Any, Dict, List
+from typing import Any, Dict, List, Tuple
 
 LANES = ("contention", "dead", "duplicate", "strata")
 STATUSES = ("proposed", "approved", "held", "banished", "skipped")
@@ -149,7 +148,8 @@ def render(register: Dict[str, Any]) -> str:
         )
     for g in ghosts:
         lines += ["", f"## {g['id']} — {g['title']}", ""]
-        lines.append(f"`{g['lane']}` · `{g['status']}` · {g['confidence']}" + (f" · **hold: {g['hold']}**" if g.get("hold") else ""))
+        also = f" (also {', '.join(g['also'])})" if g.get("also") else ""
+        lines.append(f"`{g['lane']}`{also} · `{g['status']}` · {g['confidence']}" + (f" · **hold: {g['hold']}**" if g.get("hold") else ""))
         lines.append("")
         lines.append("**Retires.** " + ", ".join(f"`{c}`" for c in g.get("concepts", [])))
         if g.get("survivor"):
@@ -186,6 +186,44 @@ def _normalize(ghost: Dict[str, Any]) -> None:
                 ev["detail"] = html.unescape(ev["detail"])
 
 
+def _site_keys(ghost: Dict[str, Any]) -> List[Tuple[str, int]]:
+    return [
+        (s["path"], int(s["line"]))
+        for s in ghost.get("sites", []) or []
+        if isinstance(s, dict) and s.get("path") and s.get("line") is not None and s.get("role") != "keep"
+    ]
+
+
+def _overlap(a: Dict[str, Any], b: Dict[str, Any]) -> bool:
+    return bool(set(_site_keys(a)) & set(_site_keys(b)))
+
+
+def collapse(ghosts: List[Dict[str, Any]]) -> List[Dict[str, Any]]:
+    """Two lanes naming the same ghost is one ghost. Lanes overlap by design — a
+    single-caller wrapper is dead to one lane and a stratum to another — so ghosts
+    whose banish/migrate sites coincide exactly are folded — a line's neighbour is a
+    different ghost more often than the same one: the one retiring more concepts
+    survives, absorbs the other's evidence, and records the second lane in `also`."""
+    ordered = sorted(
+        ghosts,
+        key=lambda g: (-len(g.get("concepts", [])), 0 if g.get("confidence") == "sourced" else 1),
+    )
+    kept: List[Dict[str, Any]] = []
+    for ghost in ordered:
+        winner = next((k for k in kept if _overlap(k, ghost)), None)
+        if winner is None:
+            kept.append(ghost)
+            continue
+        seen = {e.get("detail") for e in winner.get("evidence", [])}
+        winner["evidence"] = list(winner.get("evidence", [])) + [
+            e for e in ghost.get("evidence", []) if e.get("detail") not in seen
+        ]
+        also = winner.setdefault("also", [])
+        if ghost.get("lane") not in also and ghost.get("lane") != winner.get("lane"):
+            also.append(ghost["lane"])
+    return kept
+
+
 def merge(lane_files: List[Path], repo: str, ref: str, receipts: str) -> Dict[str, Any]:
     """Combine per-lane replies into one register. A lane file that does not parse as
     a JSON array is recorded as 'did not report' and never repaired."""
@@ -215,6 +253,7 @@ def merge(lane_files: List[Path], repo: str, ref: str, receipts: str) -> Dict[st
                 ghost.setdefault("survivor", None)
                 ghost.setdefault("outcome", None)
                 ghosts.append(ghost)
+    ghosts = collapse(ghosts)
     for i, ghost in enumerate(ghosts, 1):
         ghost["id"] = f"G-{i:02d}"
     register = {
@@ -241,7 +280,6 @@ def main() -> int:
     parser = argparse.ArgumentParser(description=__doc__.split("\n")[0])
     sub = parser.add_subparsers(dest="cmd", required=True)
     sub.add_parser("validate").add_argument("path")
-    sub.add_parser("rank").add_argument("path")
     sub.add_parser("render").add_argument("path")
     m = sub.add_parser("merge")
     m.add_argument("out")
@@ -273,10 +311,6 @@ def main() -> int:
                 print(f"  - {e}")
             return 1
         print(f"Register valid: {len(register['ghosts'])} ghost(s).")
-        return 0
-    if args.cmd == "rank":
-        _save(args.path, rank(register))
-        print(f"Ranked {len(register['ghosts'])} ghost(s).")
         return 0
     if args.cmd == "render":
         sys.stdout.write(render(register))

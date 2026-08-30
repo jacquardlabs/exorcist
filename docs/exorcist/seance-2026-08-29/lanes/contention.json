@@ -1,0 +1,131 @@
+[
+  {
+    "lane": "contention",
+    "title": "two vocabularies for one lane reply — concepts_removed/hold_reason/summary vs concepts/hold/title",
+    "concepts": ["concepts_removed", "hold_reason", "summary (findings field)", "the second hold enumeration (implied by intent · blast radius: N consumers)"],
+    "survivor": "reference/ghost.md:11 title · :12 concepts · :26 hold — the vocabulary scripts/register.py validates",
+    "evidence": [
+      {"kind": "grep", "detail": "concepts_removed: 6 mentions in 5 files (reference/findings.md:19,35; agents/abstraction-hunter.md:59; agents/deletion-scout.md:26; agents/intent-tracer.md:51; agents/threshold-salter.md:49) · concepts: 24 mentions in 8 files (reference/ghost.md 2, reference/register.md 4, scripts/register.py 9, the four séance agents 6, commands/seance.md 3)", "receipt": null},
+      {"kind": "grep", "detail": "hold_reason: 9 mentions in 5 files (reference/findings.md:20,32,37; commands/exorcise.md:86,134; agents/intent-tracer.md:44,46; agents/threshold-salter.md:37; agents/abstraction-hunter.md:63) · hold as the same field: reference/ghost.md:26, reference/register.md:66, scripts/register.py (4 mentions)", "receipt": null},
+      {"kind": "read", "detail": "scripts/register.py:30-33 GHOST_REQUIRED = (id, lane, title, status, concepts, evidence, sites, blast_radius, banishment, confidence) — the ghost names are the only ones any code reads; no validator exists for the findings contract, so concepts_removed/hold_reason/summary are enforced by prose alone", "receipt": null},
+      {"kind": "read", "detail": "two enumerations of one concept: reference/findings.md:37-39 hold values (trust boundary · blast radius: N consumers outside the diff · behavior change · implied by intent) vs reference/ghost.md:42-45 (public API · trust boundary · behavior change · spec conflict) — 2 of 4 shared, 4 unique across the two", "receipt": null},
+      {"kind": "read", "detail": "commands/exorcise.md speaks both vocabularies in one file: hold_reason at :86 and :134 for a changeset run, hold at :162, :164, :166 for a register run", "receipt": null},
+      {"kind": "trace", "detail": "git log: reference/findings.md landed in 98cdd21 (exorcise changeset mount); reference/ghost.md and register.md in 223cf3d (séance), and the newest mount c9acde3 (/exorcist:exorcise <register>) speaks the ghost vocabulary — the newer code moved to concepts/hold/title", "receipt": null}
+    ],
+    "sites": [
+      {"path": "reference/findings.md", "line": 35, "role": "banish"},
+      {"path": "agents/abstraction-hunter.md", "line": 59, "role": "migrate"},
+      {"path": "agents/deletion-scout.md", "line": 26, "role": "migrate"},
+      {"path": "agents/intent-tracer.md", "line": 44, "role": "migrate"},
+      {"path": "agents/threshold-salter.md", "line": 37, "role": "migrate"},
+      {"path": "commands/exorcise.md", "line": 86, "role": "migrate"},
+      {"path": "reference/ghost.md", "line": 12, "role": "keep"},
+      {"path": "scripts/register.py", "line": 30, "role": "keep"}
+    ],
+    "blast_radius": {"files": 8, "callers": 5, "exported": false, "tests": 0},
+    "banishment": "rename findings.md's concepts_removed→concepts, hold_reason→hold, summary→title and fold its hold values into ghost.md's four; update the 5 prompt files that speak the old names",
+    "confidence": "sourced",
+    "hold": null
+  },
+  {
+    "lane": "contention",
+    "title": "two declarations of the plugin's version and description",
+    "concepts": ["pyproject.toml [project].version", "pyproject.toml [project].description"],
+    "survivor": ".claude-plugin/plugin.json:4 version — the file semantic-release bumps and validate_plugin.py checks",
+    "evidence": [
+      {"kind": "read", "detail": "pyproject.toml:3 version = \"0.1.0\" vs .claude-plugin/plugin.json:4 \"version\": \"0.4.0\" — three releases of drift (git log shows chore(release) v0.2.0, v0.3.0, v0.4.0 after pyproject was written in 97fc5ae)", "receipt": null},
+      {"kind": "read", "detail": "pyproject.toml:12 version_variables = [\".claude-plugin/plugin.json:version\"] with the comment at :9-11 'The version lives in the plugin manifest and is bumped by CI on merge to main — never edit it by hand' — the doc names the survivor", "receipt": null},
+      {"kind": "grep", "detail": "grep -rn pyproject --exclude-dir=.git . → 1 hit outside scripts/tests: commands/exorcise.md:111, a prose list of files to look in for checks. No [build-system] table and build_command = \"\" (pyproject.toml:20): nothing reads [project].version or [project].description", "receipt": null},
+      {"kind": "read", "detail": "scripts/validate_plugin.py:20-28 REQUIRED = (name, description, version, author, repository, license, keywords) validates plugin.json only; tests/test_validate_plugin.py:29 asserts the real manifest and nothing asserts pyproject — one of the two declarations has a test, the other has none", "receipt": null}
+    ],
+    "sites": [
+      {"path": "pyproject.toml", "line": 3, "role": "banish"},
+      {"path": "pyproject.toml", "line": 4, "role": "banish"},
+      {"path": ".claude-plugin/plugin.json", "line": 4, "role": "keep"}
+    ],
+    "blast_radius": {"files": 3, "callers": 0, "exported": false, "tests": 1},
+    "banishment": "delete the stale version and description from pyproject [project] (or mark version dynamic); .claude-plugin/plugin.json is the one manifest",
+    "confidence": "sourced",
+    "hold": null
+  },
+  {
+    "lane": "contention",
+    "title": "three lists of directories to ignore, and they disagree",
+    "concepts": ["JSCPD_IGNORE's directory globs", "DEPCRUISE_CONFIG.options.exclude"],
+    "survivor": "scripts/receipts.py:41 SKIP_DIRS",
+    "evidence": [
+      {"kind": "read", "detail": "scripts/receipts.py:41-44 SKIP_DIRS names 14 directories; :48 JSCPD_IGNORE respells 8 of them as globs; :54 DEPCRUISE_CONFIG exclude respells 5 as a regex (node_modules|dist|build|\\.next|coverage) — one concern, three spellings in one file", "receipt": null},
+      {"kind": "grep", "detail": "they have already drifted: .git, .tox, .mypy_cache, .ruff_cache, .pytest_cache, .turbo, coverage are in SKIP_DIRS but not in JSCPD_IGNORE; .venv, venv, vendor, target, __pycache__ are in SKIP_DIRS but not in the depcruise exclude — 12 of 14 entries are missing from at least one copy", "receipt": null},
+      {"kind": "read", "detail": "SKIP_DIRS is consumed in code (code_files at :97, the os.walk fallback at :75, so sizes/churn/depcruise inputs honor it) while the other two are string constants handed straight to a tool argv at :277 and :342 — nothing keeps the three in step", "receipt": null},
+      {"kind": "tool", "detail": "the file the three lists sit in is the largest in the tree at 521 lines", "receipt": "sizes.json#largest[0]"}
+    ],
+    "sites": [
+      {"path": "scripts/receipts.py", "line": 48, "role": "banish"},
+      {"path": "scripts/receipts.py", "line": 54, "role": "banish"},
+      {"path": "scripts/receipts.py", "line": 41, "role": "keep"}
+    ],
+    "blast_radius": {"files": 3, "callers": 2, "exported": false, "tests": 1},
+    "banishment": "derive JSCPD_IGNORE's directory globs and the depcruise exclude regex from SKIP_DIRS; delete the two hand-written copies",
+    "confidence": "sourced",
+    "hold": null
+  },
+  {
+    "lane": "contention",
+    "title": "two ways to run a subprocess in receipts.py",
+    "concepts": ["the bare subprocess.run in tracked_files"],
+    "survivor": "scripts/receipts.py:127 run()",
+    "evidence": [
+      {"kind": "grep", "detail": "run() helper: 8 call sites (scripts/receipts.py:160, 167, 259, 278, 304, 325, 344, 370) · bare subprocess.run: 1 call site (scripts/receipts.py:65), plus the one inside run() itself at :129", "receipt": null},
+      {"kind": "read", "detail": "receipts.py:64-72 rebuilds what run() already gives: it passes check=True and catches (OSError, CalledProcessError) where run() returns 127 for OSError and hands the exit code back — the only thing the bare call loses is run()'s timeout, and it invokes git the same way churn does at :160", "receipt": null},
+      {"kind": "read", "detail": "receipts.py:103 documents run() as the file's subprocess idiom ('The argv prefix that runs tool') and every tool receipt from _ast_grep to _scc goes through it; tracked_files is the only holdout", "receipt": null}
+    ],
+    "sites": [
+      {"path": "scripts/receipts.py", "line": 65, "role": "migrate"},
+      {"path": "scripts/receipts.py", "line": 127, "role": "keep"}
+    ],
+    "blast_radius": {"files": 2, "callers": 1, "exported": false, "tests": 1},
+    "banishment": "replace the bare subprocess.run in tracked_files (receipts.py:65) with the run() helper; every other subprocess in the file already goes through it",
+    "confidence": "sourced",
+    "hold": null
+  },
+  {
+    "lane": "contention",
+    "title": "two ways to cite a receipt and to name the receipts directory",
+    "concepts": ["the jscpd.json#duplicates[…] citation form", "the docs/exorcist/receipts-<date>/ path form"],
+    "survivor": "reference/ghost.md:16 jscpd.json#clones[2] · commands/seance.md:37 docs/exorcist/seance-<date>/receipts",
+    "evidence": [
+      {"kind": "read", "detail": "reference/register.md:25 cites jscpd.json#duplicates[2] where reference/ghost.md:16 cites jscpd.json#clones[2] for the identical evidence line; scripts/receipts.py:293 writes the key \"clones\", so #duplicates resolves to nothing in the receipt it names", "receipt": "jscpd.json#clones"},
+      {"kind": "read", "detail": "reference/register.md:13 shows \"receipts\": \"docs/exorcist/receipts-2026-08-29/\" while commands/seance.md:37-39 writes DIR=docs/exorcist/seance-$(date +%Y-%m-%d) and the receipts to $DIR/receipts — the only directory that exists on disk is seance-2026-08-29/receipts", "receipt": null},
+      {"kind": "grep", "detail": "receipt-key citation form: 6 files (reference/ghost.md:16, agents/dead-code.md:47 knip.json#unused_exports[4], agents/duplicate-helpers.md:17 jscpd.json#clones, agents/wrapper-strata.md:17 ast-grep.json#passthrough and :35 depcruise.json#most_imported, agents/pattern-contention.md:19 depcruise.json#most_imported) · raw-tool-key form: 1 file (reference/register.md:25)", "receipt": null}
+    ],
+    "sites": [
+      {"path": "reference/register.md", "line": 25, "role": "banish"},
+      {"path": "reference/register.md", "line": 13, "role": "banish"},
+      {"path": "reference/ghost.md", "line": 16, "role": "keep"},
+      {"path": "scripts/receipts.py", "line": 293, "role": "keep"}
+    ],
+    "blast_radius": {"files": 4, "callers": 0, "exported": false, "tests": 0},
+    "banishment": "in register.md cite jscpd.json#clones[2] and name the dir docs/exorcist/seance-<date>/receipts, matching ghost.md and what receipts.py writes",
+    "confidence": "sourced",
+    "hold": null
+  },
+  {
+    "lane": "contention",
+    "title": "the word Strata names two different lanes",
+    "concepts": ["the # Strata heading in agents/abstraction-hunter.md"],
+    "survivor": "agents/wrapper-strata.md:9 # Strata — the agent whose lane id is strata",
+    "evidence": [
+      {"kind": "grep", "detail": "grep -rn '^# Strata' agents/ → 2 hits: agents/abstraction-hunter.md:9 and agents/wrapper-strata.md:9; no other agent heading is used twice", "receipt": null},
+      {"kind": "read", "detail": "scripts/register.py:22 LANES = ('contention', 'dead', 'duplicate', 'strata') — strata is a register lane id owned by wrapper-strata; abstraction-hunter.md:58 declares lane: \"abstraction\" per reference/findings.md:11, so its heading names a lane it never reports", "receipt": null},
+      {"kind": "read", "detail": "every lane already carries two names — pattern-contention→contention, dead-code→dead, duplicate-helpers→duplicate, wrapper-strata→strata, intent-tracer→trace, abstraction-hunter→abstraction, threshold-salter→threshold, deletion-scout→deletion — and the mapping lives only in commands/seance.md:55-66 and commands/exorcise.md:56-64 prose, which is how one word ending up on two agents went unseen", "receipt": null}
+    ],
+    "sites": [
+      {"path": "agents/abstraction-hunter.md", "line": 9, "role": "banish"},
+      {"path": "agents/wrapper-strata.md", "line": 9, "role": "keep"}
+    ],
+    "blast_radius": {"files": 2, "callers": 0, "exported": false, "tests": 0},
+    "banishment": "retitle abstraction-hunter.md's # Strata to its own lane's word (Abstraction); strata stays the wrapper lane's name",
+    "confidence": "sourced",
+    "hold": null
+  }
+]

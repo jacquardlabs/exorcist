@@ -82,6 +82,31 @@ def test_merge_normalizes_kinds_and_unescapes_html():
     assert register.validate(merged) == []
 
 
+def test_merge_collapses_ghosts_two_lanes_reported_at_the_same_site():
+    dead = _ghost(lane="dead", concepts=["rank subcommand", "its doc line"],
+                  evidence=[{"kind": "grep", "detail": "rank: 0 invocations"}],
+                  sites=[{"path": "scripts/register.py", "line": 244, "role": "banish"}])
+    strata = _ghost(lane="strata", concepts=["rank subcommand"],
+                    evidence=[{"kind": "read", "detail": "merge already ranks"}],
+                    sites=[{"path": "scripts/register.py", "line": 245, "role": "banish"},
+                           {"path": "scripts/register.py", "line": 244, "role": "banish"}])
+    neighbour = _ghost(lane="contention", concepts=["y"], sites=[{"path": "scripts/register.py", "line": 246, "role": "banish"}])
+    other = _ghost(lane="strata", concepts=["x"], sites=[{"path": "scripts/register.py", "line": 244, "role": "keep"}])
+    with tempfile.TemporaryDirectory() as tmp:
+        d = Path(tmp)
+        (d / "dead.json").write_text(json.dumps([dead]))
+        (d / "strata.json").write_text(json.dumps([strata, other]))
+        (d / "contention.json").write_text(json.dumps([neighbour]))
+        merged = register.merge([d / "dead.json", d / "strata.json", d / "contention.json"], "o/r", "abc", "")
+    ghosts = merged["ghosts"]
+    assert len(ghosts) == 3, [g["title"] for g in ghosts]  # the adjacent-line ghost stays separate
+    winner = ghosts[0]
+    assert winner["lane"] == "dead" and winner["also"] == ["strata"]
+    assert [e["detail"] for e in winner["evidence"]] == ["rank: 0 invocations", "merge already ranks"]
+    assert "(also strata)" in register.render(merged)
+    assert register.validate(merged) == []
+
+
 def test_merge_records_silent_lanes_and_unwraps_one_fence():
     with tempfile.TemporaryDirectory() as tmp:
         d = Path(tmp)

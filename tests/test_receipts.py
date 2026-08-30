@@ -33,11 +33,11 @@ def test_ts_passthrough_detection():
 
 
 def test_detect_and_applicable():
-    stack = receipts.detect(Path("."), ["src/a.py", "pyproject.toml", "README.md"])
+    stack = receipts.detect(["src/a.py", "pyproject.toml", "README.md"])
     assert stack["stacks"] == ["py"]
     plan = receipts.applicable(stack["stacks"])
     assert plan["ruff"] is None and plan["knip"] and plan["depcruise"]
-    js = receipts.detect(Path("."), ["package.json", "src/index.ts", "node_modules/x/y.js"])
+    js = receipts.detect(["package.json", "src/index.ts", "node_modules/x/y.js"])
     assert js["stacks"] == ["js"]
 
 

@@ -44,7 +44,7 @@ so in `evidence`.
 **3. A parallel helper.** A new helper beside an existing one with the same verb and a
 different signature (`_patch` and `_patch_sequence`; `formatDate` and `formatDate2`) is
 the highest-cost finding on the table — two ways to do one job. `action: "reuse"`,
-`target` the survivor, `summary` names both.
+`target` the survivor, `title` names both.
 
 **4. A new parameter, flag, or option** no call in the diff passes → `action:
 "delete"`. Nobody asked.
@@ -54,12 +54,11 @@ the highest-cost finding on the table — two ways to do one job. `action: "reus
 
 ## Output
 
-The array in `reference/findings.md` (locate under `${CLAUDE_PLUGIN_ROOT}` with Glob if
-the bare path fails), `lane: "abstraction"`. `evidence` always carries the count or the
-grep. `concepts_removed` lists what stops existing. A symbol that passes both checks
-produces no finding; an empty array is a clean answer.
+The array in `reference/findings.md`, `lane: "abstraction"`. `evidence` always carries
+the count or the grep. `concepts` lists what stops existing. A symbol that
+passes both checks produces no finding; an empty array is a clean answer.
 
 Never `hold` for taste. Hold only when inlining or reusing would change behavior the
-diff's tests pin — `hold_reason: "behavior change"` and say which test.
+diff's tests pin — `hold: "behavior change"` and say which test.
 
 **Your entire reply is the JSON array.** No prose before or after it, no code fence, no heading. A reply the command cannot parse is a lane that did not report.

@@ -66,7 +66,10 @@ has marked it so. `scripts/register.py` validates, ranks, and renders it.
 - `hold` — set by the lane when the ghost is real but must not be applied without a
   human decision: `trust boundary`, `public API`, `behavior change`, `spec conflict`.
   Written as `status: proposed` with `hold` set; the human decides.
-- `rank` — assigned by `scripts/register.py rank`: concepts desc, then sourced before
+- `also` — set by the merge when a second lane reported the same ghost (a banish or
+  migrate site at the same path and line); the survivor keeps its lane, absorbs the
+  other's evidence, and lists the other lane here.
+- `rank` — assigned by `scripts/register.py merge`: concepts desc, then sourced before
   inferred, then blast radius asc.
 - `outcome` — written by `/exorcist:exorcise`: what was done, the checks run, or why
   it was skipped.

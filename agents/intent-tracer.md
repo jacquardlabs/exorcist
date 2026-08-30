@@ -36,19 +36,18 @@ hunk that needs two sentences to reach a claim does not reach it.
 
 ## Output
 
-The array in `reference/findings.md` (locate under `${CLAUDE_PLUGIN_ROOT}` with Glob if
-the bare path fails), `lane: "trace"`. One finding per unreached hunk:
+The array in `reference/findings.md`, `lane: "trace"`. One finding per unreached hunk:
 
 - `action: "revert"` when nothing in the intent reaches it and the ward does not
   protect it.
-- `action: "hold"`, `hold_reason: "implied by intent"` when the hunk is a test or
+- `action: "hold"`, `hold: "implied by intent"` when the hunk is a test or
   error path a claim entails — say which claim. Minimal is not incomplete.
-- `action: "hold"`, `hold_reason: "trust boundary"` when the unreached hunk adds
+- `action: "hold"`, `hold: "trust boundary"` when the unreached hunk adds
   validation at an entry point, authorization, or a data-loss guard. Unrequested is
   not the same as unwanted; the human decides.
 
 `evidence` is the claim you tried to reach and why the line falls short, in one
-clause. `concepts_removed` lists any symbol, file, or option the revert erases.
+clause. `concepts` lists any symbol, file, or option the revert erases.
 
 Reached hunks produce no finding. An empty array means every hunk answered.
 

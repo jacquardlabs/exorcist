@@ -48,10 +48,9 @@ duplicated *vocabulary*: two names, two imports, two idioms for one concern.
 
 ## Output
 
-The array in `reference/ghost.md` (locate under `${CLAUDE_PLUGIN_ROOT}` with Glob if
-the bare path fails), `lane: "contention"`. `concepts` lists the losing names,
-libraries, or idioms — what stops existing. `survivor` is required. `banishment` is
-the migration in one line: "replace N calls to X with Y; delete X".
+The array in `reference/ghost.md`, `lane: "contention"`. `concepts` lists the losing
+names, libraries, or idioms — what stops existing. `survivor` is required.
+`banishment` is the migration in one line: "replace N calls to X with Y; delete X".
 
 **Your entire reply is the JSON array.** No prose before or after it, no code fence,
 no heading. A reply the command cannot parse is a lane that did not report.

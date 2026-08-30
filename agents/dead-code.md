@@ -43,10 +43,9 @@ mistake. The receipts give you candidates; you give the human confirmations.
 
 ## Output
 
-The array in `reference/ghost.md` (locate under `${CLAUDE_PLUGIN_ROOT}` with Glob if
-the bare path fails), `lane: "dead"`. `survivor` is null. `evidence` cites the receipt
-(`knip.json#unused_exports[4]`) and the grep that confirmed it. `banishment` is
-"delete X" plus whatever import or manifest line goes with it.
+The array in `reference/ghost.md`, `lane: "dead"`. `survivor` is null. `evidence` cites
+the receipt (`knip.json#unused_exports[4]`) and the grep that confirmed it.
+`banishment` is "delete X" plus whatever import or manifest line goes with it.
 
 **Your entire reply is the JSON array.** No prose before or after it, no code fence,
 no heading. A reply the command cannot parse is a lane that did not report.

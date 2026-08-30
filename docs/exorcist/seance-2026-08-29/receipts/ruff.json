@@ -1,0 +1,13 @@
+{
+ "by_code": {
+  "ARG001": 1
+ },
+ "findings": [
+  {
+   "file": "scripts/receipts.py",
+   "line": 81,
+   "code": "ARG001",
+   "message": "Unused function argument: `root`"
+  }
+ ]
+}

@@ -1,0 +1,52 @@
+{
+ "top": [
+  {
+   "file": "scripts/receipts.py",
+   "changes": 1,
+   "lines": 521,
+   "score": 521
+  },
+  {
+   "file": "scripts/register.py",
+   "changes": 1,
+   "lines": 288,
+   "score": 288
+  },
+  {
+   "file": "scripts/tripwires.py",
+   "changes": 1,
+   "lines": 207,
+   "score": 207
+  },
+  {
+   "file": "tests/test_tripwires.py",
+   "changes": 1,
+   "lines": 127,
+   "score": 127
+  },
+  {
+   "file": "tests/test_register.py",
+   "changes": 1,
+   "lines": 102,
+   "score": 102
+  },
+  {
+   "file": "scripts/validate_plugin.py",
+   "changes": 1,
+   "lines": 79,
+   "score": 79
+  },
+  {
+   "file": "tests/test_receipts.py",
+   "changes": 1,
+   "lines": 68,
+   "score": 68
+  },
+  {
+   "file": "tests/test_validate_plugin.py",
+   "changes": 1,
+   "lines": 59,
+   "score": 59
+  }
+ ]
+}

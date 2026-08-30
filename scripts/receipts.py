@@ -1,7 +1,7 @@
 #!/usr/bin/env python3
 """Séance phase 0 — run the zero-config tool core over a tree and write receipts.
 
-    python3 receipts.py --root <worktree> --out <dir> [--no-fetch] [--only a,b] [--skip a,b]
+    python3 receipts.py --root <worktree> --out <dir> [--no-fetch]
 
 Receipts are JSON files the lanes cite, one per tool, plus `manifest.json` (what ran,
 what was skipped and why, the exact command) and `summary.md` (counts and the top
@@ -56,6 +56,8 @@ DEPCRUISE_CONFIG = {
     },
 }
 ALL_TOOLS = ("sizes", "churn", "scc", "ast-grep", "jscpd", "knip", "ruff", "depcruise")
+CHURN_DAYS = 180
+TIMEOUT = 300  # seconds per tool
 
 
 # --- tree -------------------------------------------------------------------------
@@ -78,7 +80,7 @@ def tracked_files(root: Path) -> List[str]:
     return sorted(files)
 
 
-def detect(root: Path, files: List[str]) -> Dict[str, Any]:
+def detect(files: List[str]) -> Dict[str, Any]:
     exts = Counter(Path(f).suffix for f in files)
     manifests = [f for f in files if Path(f).name in {"package.json", "pyproject.toml", "setup.py", "go.mod", "Cargo.toml"} or Path(f).name.startswith("requirements")]
     stacks = []
@@ -132,6 +134,14 @@ def run(argv: List[str], cwd: Path, timeout: int) -> Tuple[int, str, str]:
     except OSError as exc:
         return 127, "", str(exc)
     return proc.returncode, proc.stdout, proc.stderr
+
+
+def run_json(argv: List[str], cwd: Path, timeout: int) -> Tuple[Optional[Any], int, str]:
+    """`run`, with stdout parsed as JSON. `None` and a non-zero code when stdout held none."""
+    code, out, err = run(argv, cwd, timeout)
+    if not out.strip().startswith(("{", "[")):
+        return None, code or 1, err or "no JSON on stdout"
+    return json.loads(out), code, err
 
 
 # --- stdlib receipts --------------------------------------------------------------
@@ -301,10 +311,9 @@ def _symbol(file: Optional[str], x: Any) -> Dict[str, Any]:
 
 def _knip(prefix: List[str], root: Path, timeout: int) -> Tuple[Dict[str, Any], List[str], int, str]:
     argv = [*prefix, "--reporter", "json", "--no-progress"]
-    code, out, err = run(argv, root, timeout)
-    if not out.strip().startswith("{"):
-        return {}, argv, code or 1, err or "no JSON on stdout"
-    data = json.loads(out)
+    data, code, err = run_json(argv, root, timeout)
+    if data is None:
+        return {}, argv, code, err
     unused_files, unused_exports, unused_types, unused_deps, unlisted = [], [], [], [], []
     for issue in data.get("issues", []):
         f = issue.get("file")
@@ -322,13 +331,13 @@ def _knip(prefix: List[str], root: Path, timeout: int) -> Tuple[Dict[str, Any], 
 
 def _ruff(prefix: List[str], root: Path, timeout: int) -> Tuple[Dict[str, Any], List[str], int, str]:
     argv = [*prefix, "check", "--select", "F401,F811,F841,F842,ERA001,ARG", "--output-format", "json", "--exit-zero", "--no-cache", "."]
-    code, out, err = run(argv, root, timeout)
-    if not out.strip().startswith("["):
-        return {}, argv, code or 1, err or "no JSON on stdout"
+    data, code, err = run_json(argv, root, timeout)
+    if data is None:
+        return {}, argv, code, err
     findings = [
         {"file": os.path.relpath(x["filename"], root) if os.path.isabs(x["filename"]) else x["filename"],
          "line": x["location"]["row"], "code": x["code"], "message": x["message"]}
-        for x in json.loads(out)
+        for x in data
     ]
     by_code = Counter(x["code"] for x in findings)
     return {"by_code": dict(by_code.most_common()), "findings": findings}, argv, 0, err
@@ -341,10 +350,9 @@ def _depcruise(prefix: List[str], root: Path, out_dir: Path, files: List[str], t
     config = out_dir / "depcruise.config.json"
     config.write_text(json.dumps(DEPCRUISE_CONFIG), encoding="utf-8")
     argv = [*prefix, "--config", str(config), "--output-type", "json", *sources[:2000]]
-    code, out, err = run(argv, root, timeout)
-    if not out.strip().startswith("{"):
-        return {}, argv, code or 1, err or "no JSON on stdout"
-    data = json.loads(out)
+    data, code, err = run_json(argv, root, timeout)
+    if data is None:
+        return {}, argv, code, err
     summary = data.get("summary", {})
     cycles = []
     seen = set()
@@ -367,10 +375,9 @@ def _depcruise(prefix: List[str], root: Path, out_dir: Path, files: List[str], t
 
 def _scc(prefix: List[str], root: Path, timeout: int) -> Tuple[Dict[str, Any], List[str], int, str]:
     argv = [*prefix, "--format", "json", "--by-file", "--no-cocomo", "."]
-    code, out, err = run(argv, root, timeout)
-    if not out.strip().startswith("["):
-        return {}, argv, code or 1, err or "no JSON on stdout"
-    data = json.loads(out)
+    data, code, err = run_json(argv, root, timeout)
+    if data is None:
+        return {}, argv, code, err
     files = [
         {"file": f.get("Location"), "language": lang.get("Name"), "code": f.get("Code"), "complexity": f.get("Complexity")}
         for lang in data
@@ -398,19 +405,13 @@ def main() -> int:
     parser.add_argument("--root", required=True)
     parser.add_argument("--out", required=True)
     parser.add_argument("--no-fetch", action="store_true", help="PATH binaries only; never npx/uvx")
-    parser.add_argument("--only", default="", help="comma-separated tool names")
-    parser.add_argument("--skip", default="", help="comma-separated tool names")
-    parser.add_argument("--churn-days", type=int, default=180)
-    parser.add_argument("--timeout", type=int, default=300, help="seconds per tool")
     args = parser.parse_args()
 
     root = Path(args.root).resolve()
     out = Path(args.out).resolve()
     out.mkdir(parents=True, exist_ok=True)
     files = tracked_files(root)
-    stack = detect(root, files)
-    only = {t for t in args.only.split(",") if t}
-    skip = {t for t in args.skip.split(",") if t}
+    stack = detect(files)
     plan = applicable(stack["stacks"])
     manifest: Dict[str, Any] = {"root": str(root), "stack": stack, "tools": {}}
     results: Dict[str, Dict[str, Any]] = {}
@@ -419,9 +420,6 @@ def main() -> int:
         manifest["tools"][tool] = {"status": status, **extra}
 
     def job(tool: str) -> None:
-        if (only and tool not in only) or tool in skip:
-            record(tool, "skipped", reason="excluded by flag")
-            return
         if plan[tool]:
             record(tool, "skipped", reason=plan[tool])
             return
@@ -431,7 +429,7 @@ def main() -> int:
                 record(tool, "ran", command="stdlib")
                 return
             if tool == "churn":
-                results[tool] = churn(root, args.churn_days, files)
+                results[tool] = churn(root, CHURN_DAYS, files)
                 record(tool, "ran" if "error" not in results[tool] else "failed", command="git log", reason=results[tool].get("error"))
                 return
             prefix = resolve(tool, fetch=not args.no_fetch)
@@ -440,17 +438,17 @@ def main() -> int:
                 record(tool, "skipped", reason=f"not on PATH ({hint})" + ("; --no-fetch set" if args.no_fetch else ""))
                 return
             if tool == "ast-grep":
-                data, argv, code, err = _ast_grep(prefix, root, args.timeout)
+                data, argv, code, err = _ast_grep(prefix, root, TIMEOUT)
             elif tool == "jscpd":
-                data, argv, code, err = _jscpd(prefix, root, out, args.timeout)
+                data, argv, code, err = _jscpd(prefix, root, out, TIMEOUT)
             elif tool == "knip":
-                data, argv, code, err = _knip(prefix, root, args.timeout)
+                data, argv, code, err = _knip(prefix, root, TIMEOUT)
             elif tool == "ruff":
-                data, argv, code, err = _ruff(prefix, root, args.timeout)
+                data, argv, code, err = _ruff(prefix, root, TIMEOUT)
             elif tool == "depcruise":
-                data, argv, code, err = _depcruise(prefix, root, out, files, args.timeout)
+                data, argv, code, err = _depcruise(prefix, root, out, files, TIMEOUT)
             else:
-                data, argv, code, err = _scc(prefix, root, args.timeout)
+                data, argv, code, err = _scc(prefix, root, TIMEOUT)
             if data:
                 results[tool] = data
                 record(tool, "ran", command=" ".join(argv[:6]) + (" …" if len(argv) > 6 else ""), exit=code)

@@ -1,6 +1,6 @@
 [project]
 name = "exorcist"
-version = "0.1.0"
+dynamic = ["version"]
 description = "Aggressive simplification for LLM-generated code — concepts removed, not lines"
 requires-python = ">=3.9"
 dependencies = []
