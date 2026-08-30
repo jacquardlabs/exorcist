@@ -103,8 +103,8 @@ Information Leakage is the one-sentence test.
 | `ward.md` + `/exorcist:ward` | landed — [verified on specdeck](docs/verification/ward-specdeck-2026-08-29.md) |
 | `/exorcist:exorcise` (changeset) | landed — [verified on specdeck](docs/verification/exorcise-specdeck-2026-08-29.md) |
 | `/exorcist:seance` + register schema | landed — [verified on specdeck](docs/verification/seance-specdeck-2026-08-29.md) |
-| `/exorcist:exorcise <register>` | planned |
-| Marketplace registration | planned |
+| `/exorcist:exorcise <register>` | landed — [verified on specdeck](docs/verification/exorcise-register-specdeck-2026-08-29.md) |
+| Marketplace registration | [draft PR](https://github.com/jacquardlabs/marketplace/pull/17), merges after the mounts |
 
 ## Prior art
 

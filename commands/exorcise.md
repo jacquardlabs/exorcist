@@ -16,8 +16,9 @@ this change belong here at all?
 
 ## 0. Mode
 
-If `$ARGUMENTS` is a path to an existing `.json` file, this is a **register run** —
-see "Working a register" at the end. Otherwise it is a **changeset run**.
+If the first token of `$ARGUMENTS` is a path to an existing `.json` file, this is a
+**register run** — skip to "Working a register" at the end. Otherwise it is a
+**changeset run**; the argument is the intent.
 
 ## 1. Gather the intent
 
@@ -143,5 +144,83 @@ Sections with nothing in them are omitted. A change with no findings gets the he
 
 ## Working a register
 
-`$ARGUMENTS` named a séance register. Not yet implemented — say so, point at
-`/exorcist:seance`, and stop.
+`$ARGUMENTS` named a séance register, optionally followed by ghost ids or the word
+`all`: `/exorcist:exorcise docs/exorcist/seance-2026-08-29/register.json G-01,G-04`.
+
+The register is the approval surface. Find and apply are separate mounts because
+whole-codebase deletion is where autonomous apply becomes dangerous; here the human
+has already read the evidence and said which ghosts go.
+
+### 1. Load and select
+
+```bash
+python3 "${CLAUDE_PLUGIN_ROOT}/scripts/register.py" validate <path>
+```
+
+Invalid → print the errors and stop. Then select, in this order:
+
+- ids were given → those ghosts, whatever their status. Naming a ghost with `hold`
+  set is the human's decision to override it; say so in the report.
+- `all` → every ghost with status `proposed` or `approved` and **no** `hold`.
+- nothing → every ghost with status `approved` and no `hold`.
+
+None selected → print the counts by status, say how to approve (`"status":
+"approved"` in the file, or pass ids), and stop.
+
+### 2. Preconditions
+
+- `git status --porcelain --untracked-files=no` is empty — no modified tracked files.
+  A dirty tree means a failed batch cannot be cleanly undone; stop and say so. The
+  register itself is usually untracked, which is fine.
+- `git rev-parse HEAD` equals the register's `ref`. If not, say so and continue: the
+  evidence is re-verified per ghost below, so drift is caught where it matters.
+
+### 3. One ghost at a time, in rank order
+
+For each selected ghost:
+
+1. **Re-verify the evidence.** Re-run every `grep` in `evidence` and recount. Open
+   every `site`. A count that changed, a site that moved, a survivor that no longer
+   exists → `status: "skipped"`, `outcome: "evidence drifted: <what changed>"`. Move
+   on; never guess at the new location.
+2. **Snapshot.** Copy every file in `sites` (and any importer you expect to touch) to
+   `<tmp>/snap-<id>/`. This is the undo for this ghost alone — it leaves earlier
+   batches in other files intact.
+3. **Banish.** Apply `banishment`: delete `banish` sites, rewrite `migrate` sites to
+   the `survivor`, leave `keep` sites alone. Remove the orphans the deletion creates
+   — imports, manifest lines, a test file whose subject is gone. Edit nothing outside
+   the sites and their direct importers.
+4. **Verify.** The project's checks scoped to the sites' modules and the tests that
+   reference them; the typecheck or lint over the touched files. A failure → restore
+   the snapshot, `status: "skipped"`, `outcome: "check failed: <name>: <first line>"`.
+   Never weaken an assertion or a type to get green.
+5. **Record.** `status: "banished"`, `outcome: "<what was done>; checks: <name: pass>…"`.
+   Write the register back after every ghost, then re-render:
+
+   ```bash
+   python3 "${CLAUDE_PLUGIN_ROOT}/scripts/register.py" render <path> > <path minus .json>.md
+   ```
+
+   A run interrupted halfway leaves a register that says exactly how far it got.
+
+### 4. Close
+
+Run the project's full check suite once over the result. Then:
+
+```text
+# Exorcise — <register path> @ <ref-short>
+
+Banished <n> (<m> concepts) · Skipped <k> · Untouched <j> (held or not selected)
+
+## Banished
+- G-01  <title> — <outcome>
+## Skipped
+- G-04  <title> — <outcome>
+
+Concepts removed: <list>
+Checks: <name: outcome> …
+Diff: <git diff --stat, last line>
+```
+
+No commit. The human reviews `git diff` and commits in the batches they want; the
+register records what each ghost did so the commit message can cite it.
