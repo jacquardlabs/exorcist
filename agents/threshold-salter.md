@@ -34,7 +34,7 @@ the point.
    - Unfixed consumers = 0 and the entry is inside a file the diff touches →
      `action: "move"`, `target` the entry `path:line`. The fix moves; the local check
      comes out.
-   - Unfixed consumers > 0 → `action: "hold"`, `hold_reason: "blast radius: N
+   - Unfixed consumers > 0 → `action: "hold"`, `hold: "blast radius: N
      consumers outside the diff"`, `target` still names the entry so the human can
      act. This is the finding that matters most; the register phase or a human works
      it.
@@ -43,10 +43,10 @@ the point.
 
 ## Output
 
-The array in `reference/findings.md` (locate under `${CLAUDE_PLUGIN_ROOT}` with Glob if
-the bare path fails), `lane: "threshold"`. `evidence` is the trace, shortest form:
+The array in `reference/findings.md`, `lane: "threshold"`. `evidence` is the trace,
+shortest form:
 `payload.url ← api/webhooks.ts:22 (req.body) · 4 readers unfixed: a.ts:10, b.ts:31,
-…`. `concepts_removed` lists the local checks that come out when the fix moves.
+…`. `concepts` lists the local checks that come out when the fix moves.
 
 Ousterhout's Information Leakage is the one-sentence test: if two places must know
 the same fact about a value, the fact is in the wrong place.

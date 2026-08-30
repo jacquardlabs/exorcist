@@ -60,8 +60,9 @@ message: `exorcist:intent-tracer`, `exorcist:abstraction-hunter`,
 - the numbered claims, verbatim;
 - the path to `<tmp>/diff.patch` and to `<tmp>/tripwires.json`;
 - the repository root and `BASE`;
-- the instruction that its entire reply is one JSON array per
-  `reference/findings.md`, nothing else.
+- the resolved absolute path of `${CLAUDE_PLUGIN_ROOT}/reference/findings.md` and
+  the instruction that its entire reply is one JSON array per that contract, nothing
+  else.
 
 Write each reply verbatim to `<tmp>/findings/<lane>.json`. Strip exactly one code
 fence wrapped around the whole reply — that is transport, not content. A reply that
@@ -83,7 +84,7 @@ Then, before touching anything, apply the ward's two guards to every finding:
   the first validation an external value meets, authorization, or a data-loss guard,
   it becomes `hold`.
 - **Minimal is not incomplete.** If a `revert` would remove a test or error path one of
-  the claims implies, it becomes `hold`, `hold_reason: "implied by intent"`.
+  the claims implies, it becomes `hold`, `hold: "implied by intent"`.
 
 A `move` whose entry point lies outside the files the diff touches stays `hold` with
 the consumer count; a register run or the human works it.
@@ -122,16 +123,16 @@ loosen a type, or skip a test to get green. No configured checks → say so.
 Traced <n> · Reverted <n> · Rewritten <n> · Deleted <n> · Held <n>
 
 ## Reverted — no claim reaches them
-- <file>:<lines>  <summary> → <what was done>
+- <file>:<lines>  <title> → <what was done>
 
 ## Rewritten
-- <file>:<lines>  <summary> → inlined into … / replaced by <target> / moved to <target>
+- <file>:<lines>  <title> → inlined into … / replaced by <target> / moved to <target>
 
 ## Deleted
 - …
 
 ## Held
-- <file>:<lines>  <summary> — <hold_reason>. <what the human or register run would do>
+- <file>:<lines>  <title> — <hold>. <what the human or register run would do>
 
 Concepts removed: <list> · Concepts kept: <new symbols that survived, each with its caller count>
 Tripwires: <the text line> — <one sentence per crossed wire>

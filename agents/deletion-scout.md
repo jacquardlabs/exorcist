@@ -23,7 +23,7 @@ For each thing the diff adds or replaces, grep for what it supersedes:
 - A dependency the change stopped importing (`grep -rn "from <pkg>\|import <pkg>\|require(<pkg>"`).
 
 Each is `action: "delete"`, `evidence` the grep showing zero remaining uses.
-`concepts_removed` is what goes.
+`concepts` is what goes.
 
 ## 2. What did the diff add that the file would not?
 
@@ -43,9 +43,8 @@ touch — flag only the ones that read as foreign to the file, not every comment
 
 ## Output
 
-The array in `reference/findings.md` (locate under `${CLAUDE_PLUGIN_ROOT}` with Glob if
-the bare path fails), `lane: "deletion"`. Never flag a trust-boundary check, a test
-that still asserts something, or a comment stating a constraint the code cannot. An
-empty array is a clean answer.
+The array in `reference/findings.md`, `lane: "deletion"`. Never flag a trust-boundary
+check, a test that still asserts something, or a comment stating a constraint the code
+cannot. An empty array is a clean answer.
 
 **Your entire reply is the JSON array.** No prose before or after it, no code fence, no heading. A reply the command cannot parse is a lane that did not report.

@@ -1,0 +1,94 @@
+[
+  {
+    "lane": "dead",
+    "title": "four evidence-kind aliases no lane has ever emitted",
+    "concepts": ["KIND_ALIASES \"file\"", "KIND_ALIASES \"count\"", "KIND_ALIASES \"search\"", "KIND_ALIASES \"callers\""],
+    "survivor": null,
+    "evidence": [
+      {"kind": "read", "detail": "scripts/register.py:25 comments KIND_ALIASES as \"What lanes actually write\"; docs/verification/seance-specdeck-2026-08-29.md:49-51 enumerates what lanes actually wrote — `read` x33, `clone`, `receipt`, `surface`. `read` was added to the vocabulary, the other three aliased. `file`, `count`, `search`, `callers` are in neither list.", "receipt": null},
+      {"kind": "grep", "detail": "grep -rn '\"count\"' / '\"search\"' over *.py and *.md: 0 hits outside register.py:26. '\"file\"' 22 hits and '\"callers\"' 6 hits, every one a site/blast_radius key, never an evidence `kind`. No agent prompt, reference doc, or test emits any of the four.", "receipt": null}
+    ],
+    "sites": [
+      {"path": "scripts/register.py", "line": 26, "role": "banish"}
+    ],
+    "blast_radius": {"files": 1, "callers": 0, "exported": false, "tests": 0},
+    "banishment": "delete the `file`, `count`, `search`, and `callers` entries from KIND_ALIASES (scripts/register.py:26), keeping `clone`/`receipt`/`surface`; an unaliased kind already fails validation loudly and the merge keeps the file as written (register.py:260-264)",
+    "confidence": "inferred",
+    "hold": null
+  },
+  {
+    "lane": "dead",
+    "title": "a `rank` subcommand nothing invokes, documented as the thing that ranks",
+    "concepts": ["scripts/register.py `rank` subcommand", "reference/register.md's \"assigned by scripts/register.py rank\""],
+    "survivor": null,
+    "evidence": [
+      {"kind": "grep", "detail": "grep -rn 'register.py' over commands/ and reference/: 4 invocations, none of them `rank` — seance.md:75 `merge`, seance.md:77 `render`, exorcise.md:157 `validate`, exorcise.md:201 `render`. The two mounts are the only callers the plugin has.", "receipt": null},
+      {"kind": "read", "detail": "scripts/register.py:229 — `merge()` ends with `return rank(register)`, so every register is ranked at creation; the CLI branch at :277-280 re-ranks a file nothing changes the concept counts of. reference/register.md:69 says \"`rank` — assigned by `scripts/register.py rank`\", naming a command no mount runs.", "receipt": null}
+    ],
+    "sites": [
+      {"path": "scripts/register.py", "line": 244, "role": "banish"},
+      {"path": "scripts/register.py", "line": 277, "role": "banish"},
+      {"path": "scripts/register.py", "line": 5, "role": "banish"},
+      {"path": "reference/register.md", "line": 69, "role": "migrate"}
+    ],
+    "blast_radius": {"files": 4, "callers": 0, "exported": false, "tests": 0},
+    "banishment": "delete the `rank` subcommand — register.py:244 and its :277-280 handler and the :5 usage line — and rewrite reference/register.md:69 to say the rank is assigned by `merge`; keep the `rank()` function, which merge calls",
+    "confidence": "sourced",
+    "hold": null
+  },
+  {
+    "lane": "dead",
+    "title": "receipts.detect takes a `root` it never reads",
+    "concepts": ["receipts.detect `root` parameter"],
+    "survivor": null,
+    "evidence": [
+      {"kind": "tool", "detail": "ruff ARG001 — unused function argument `root`, scripts/receipts.py:81 (the run's only finding)", "receipt": "ruff.json#findings[0]"},
+      {"kind": "grep", "detail": "grep -rn 'detect(' over *.py: 3 call sites — receipts.py:411 `detect(root, files)`, tests/test_receipts.py:36 and :40, both passing a throwaway `Path(\".\")`. The body (lines 82-93) reads only `files`; `root` is never dereferenced.", "receipt": null}
+    ],
+    "sites": [
+      {"path": "scripts/receipts.py", "line": 81, "role": "banish"},
+      {"path": "scripts/receipts.py", "line": 411, "role": "migrate"},
+      {"path": "tests/test_receipts.py", "line": 36, "role": "migrate"},
+      {"path": "tests/test_receipts.py", "line": 40, "role": "migrate"}
+    ],
+    "blast_radius": {"files": 4, "callers": 3, "exported": false, "tests": 1},
+    "banishment": "delete the `root` parameter of receipts.detect (receipts.py:81) and drop the argument at its 3 call sites — receipts.py:411, tests/test_receipts.py:36 and :40",
+    "confidence": "sourced",
+    "hold": null
+  },
+  {
+    "lane": "dead",
+    "title": "two config lines nothing reads: a second version string and an ignore for a directory nothing writes",
+    "concepts": ["pyproject.toml [project].version", ".gitignore `.exorcist/`"],
+    "survivor": null,
+    "evidence": [
+      {"kind": "read", "detail": "pyproject.toml:3 `version = \"0.1.0\"` against .claude-plugin/plugin.json:4 `\"version\": \"0.4.0\"`. [tool.semantic_release] version_variables (pyproject.toml:9) bumps only the manifest, `build_command = \"\"` means nothing is built from [project], and CI's lint job runs `uv run --no-project`, which opts out of the project table. The stale string is four releases behind and read by nothing.", "receipt": null},
+      {"kind": "grep", "detail": "grep -rn '\\.exorcist' over the tree: 1 hit, the .gitignore:4 line itself. Every output path the mounts write is `docs/exorcist/…` (seance.md:37, exorcise.md:148) or `<tmp>/` (exorcise.md:44, 48, 66).", "receipt": null}
+    ],
+    "sites": [
+      {"path": "pyproject.toml", "line": 3, "role": "banish"},
+      {"path": ".gitignore", "line": 4, "role": "banish"}
+    ],
+    "blast_radius": {"files": 2, "callers": 0, "exported": false, "tests": 0},
+    "banishment": "delete `version = \"0.1.0\"` from pyproject.toml:3 and add `dynamic = [\"version\"]` to keep [project] PEP 621-valid; delete the `.exorcist/` line from .gitignore:4",
+    "confidence": "sourced",
+    "hold": null
+  },
+  {
+    "lane": "dead",
+    "title": "a validation branch whose body is `pass`",
+    "concepts": ["register.validate_ghost's sourced/trace check"],
+    "survivor": null,
+    "evidence": [
+      {"kind": "read", "detail": "scripts/register.py:70-74 — `if ghost[\"confidence\"] == \"sourced\" and any(ev.get(\"kind\") == \"trace\" and not ev.get(\"receipt\") …): pass  # a trace is sourced when the lane ran it; nothing to check without the tree`. The comment states the check cannot be made; the branch appends nothing to `errors`, and the generator it evaluates is discarded. Removing it changes no return value.", "receipt": null},
+      {"kind": "grep", "detail": "grep -rn 'trace' over scripts/ and reference/: register.py:24 (the EVIDENCE_KINDS tuple), :26, :71, :74, reference/register.md:56 — lines 71/74 are the only code that inspects a `trace` evidence entry, and they inspect it to do nothing. `validate_ghost` has 1 caller (register.py:93); no test in tests/test_register.py exercises the branch.", "receipt": null}
+    ],
+    "sites": [
+      {"path": "scripts/register.py", "line": 70, "role": "banish"}
+    ],
+    "blast_radius": {"files": 1, "callers": 0, "exported": false, "tests": 0},
+    "banishment": "delete scripts/register.py:70-74; the sourced/trace branch has an empty body and validates nothing",
+    "confidence": "sourced",
+    "hold": null
+  }
+]

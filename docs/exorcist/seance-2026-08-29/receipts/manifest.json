@@ -1,0 +1,63 @@
+{
+  "root": "/private/var/folders/gm/0pnncqwj5zld1t2lm15b0xcc0000gn/T/tmp.CiidCe232T/tree",
+  "stack": {
+    "stacks": [
+      "py"
+    ],
+    "manifests": [
+      "pyproject.toml"
+    ],
+    "extensions": {
+      ".md": 23,
+      ".py": 8,
+      ".yml": 6,
+      "": 2,
+      ".json": 1,
+      ".in": 1,
+      ".txt": 1,
+      ".toml": 1
+    }
+  },
+  "tools": {
+    "knip": {
+      "status": "skipped",
+      "reason": "no JS/TS"
+    },
+    "scc": {
+      "status": "skipped",
+      "reason": "not on PATH (brew install scc)"
+    },
+    "depcruise": {
+      "status": "skipped",
+      "reason": "no JS/TS"
+    },
+    "sizes": {
+      "status": "ran",
+      "command": "stdlib"
+    },
+    "churn": {
+      "status": "ran",
+      "command": "git log",
+      "reason": null
+    },
+    "ast-grep": {
+      "status": "ran",
+      "command": "/Users/bryan/.local/bin/uvx -q --from ast-grep-cli ast-grep scan \u2026",
+      "exit": 0
+    },
+    "ruff": {
+      "status": "ran",
+      "command": "/Users/bryan/.local/bin/uvx -q ruff check --select F401,F811,F841,F842,ERA001,ARG \u2026",
+      "exit": 0
+    },
+    "jscpd": {
+      "status": "ran",
+      "command": "/Users/bryan/.local/share/nvm/v22.17.1/bin/npx -y jscpd --reporters json --output \u2026",
+      "exit": 0
+    },
+    "hotspots": {
+      "status": "ran",
+      "command": "sizes x churn"
+    }
+  }
+}

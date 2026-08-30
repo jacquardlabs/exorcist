@@ -1,0 +1,21 @@
+{
+ "passthrough": [],
+ "single_call_functions": [
+  {
+   "file": "scripts/register.py",
+   "line": 232,
+   "rule": "py-passthrough",
+   "name": "_load",
+   "callee": "json.loads",
+   "passthrough": false
+  },
+  {
+   "file": "scripts/tripwires.py",
+   "line": 43,
+   "rule": "py-passthrough",
+   "name": null,
+   "callee": null,
+   "passthrough": false
+  }
+ ]
+}

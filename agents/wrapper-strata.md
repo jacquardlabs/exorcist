@@ -49,10 +49,9 @@ count that proves it.
 
 ## Output
 
-The array in `reference/ghost.md` (locate under `${CLAUDE_PLUGIN_ROOT}` with Glob if
-the bare path fails), `lane: "strata"`. `concepts` lists the layers, wrappers, and
-abstractions that stop existing. `survivor` is null. `blast_radius.callers` is the
-number of call sites rewritten to reach through.
+The array in `reference/ghost.md`, `lane: "strata"`. `concepts` lists the layers,
+wrappers, and abstractions that stop existing. `survivor` is null.
+`blast_radius.callers` is the number of call sites rewritten to reach through.
 
 **Your entire reply is the JSON array.** No prose before or after it, no code fence,
 no heading. A reply the command cannot parse is a lane that did not report.

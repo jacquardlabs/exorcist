@@ -1,0 +1,38 @@
+{
+ "days": 180,
+ "commits": 19,
+ "hottest": [
+  {
+   "file": "scripts/receipts.py",
+   "changes": 1
+  },
+  {
+   "file": "scripts/register.py",
+   "changes": 1
+  },
+  {
+   "file": "tests/test_receipts.py",
+   "changes": 1
+  },
+  {
+   "file": "tests/test_register.py",
+   "changes": 1
+  },
+  {
+   "file": "scripts/tripwires.py",
+   "changes": 1
+  },
+  {
+   "file": "tests/test_tripwires.py",
+   "changes": 1
+  },
+  {
+   "file": "scripts/validate_plugin.py",
+   "changes": 1
+  },
+  {
+   "file": "tests/test_validate_plugin.py",
+   "changes": 1
+  }
+ ]
+}

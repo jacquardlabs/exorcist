@@ -1,0 +1,87 @@
+[
+  {
+    "lane": "strata",
+    "title": "four receipts.py CLI knobs no invoker passes, threaded through seven readers",
+    "concepts": ["receipts.py --only", "receipts.py --skip", "receipts.py --churn-days", "receipts.py --timeout", "the args.timeout parameter threaded into all six tool runners"],
+    "survivor": null,
+    "evidence": [
+      {"kind": "grep", "detail": "grep -rn 'scripts/receipts.py' over the tree: 1 invocation (commands/seance.md:39, `--root \"$ROOT\" --out \"$DIR/receipts\"`) plus 1 docstring mention in tests/test_receipts.py:2. Flags passed by that one invoker: --root, --out, and --no-fetch conditionally (seance.md:49). --only, --skip, --churn-days, --timeout: 0 passers.", "receipt": null},
+      {"kind": "read", "detail": "receipts.py:401-404 defines the four flags; 412-413 build `only`/`skip` sets read only at 422 (`if (only and tool not in only) or tool in skip`); args.churn_days is read once (434); args.timeout is read at 443, 445, 447, 449, 451, 453 — six per-tool call sites that all receive the same default 300.", "receipt": null},
+      {"kind": "tool", "detail": "receipts.py is hotspot #1 (521 lines, score 521)", "receipt": "hotspots.json#top[0]"}
+    ],
+    "sites": [
+      {"path": "scripts/receipts.py", "line": 401, "role": "banish"},
+      {"path": "scripts/receipts.py", "line": 402, "role": "banish"},
+      {"path": "scripts/receipts.py", "line": 403, "role": "banish"},
+      {"path": "scripts/receipts.py", "line": 404, "role": "banish"},
+      {"path": "scripts/receipts.py", "line": 412, "role": "banish"},
+      {"path": "scripts/receipts.py", "line": 422, "role": "banish"},
+      {"path": "scripts/receipts.py", "line": 434, "role": "migrate"},
+      {"path": "scripts/receipts.py", "line": 443, "role": "migrate"},
+      {"path": "scripts/receipts.py", "line": 4, "role": "migrate"}
+    ],
+    "blast_radius": {"files": 9, "callers": 0, "exported": true, "tests": 0},
+    "banishment": "delete the --only/--skip/--churn-days/--timeout flags and the only/skip filter branch (412-413, 422-424); pass module constants CHURN_DAYS=180 at 434 and TIMEOUT=300 at the six runner calls 443-453; drop the flags from the module docstring usage line",
+    "confidence": "sourced",
+    "hold": null
+  },
+  {
+    "lane": "strata",
+    "title": "register.py `rank` subcommand nothing invokes — merge already ranks",
+    "concepts": ["the `rank` CLI subcommand (parser entry + main branch + usage line)", "reference/register.md's claim that rank is assigned by `register.py rank`"],
+    "survivor": null,
+    "evidence": [
+      {"kind": "grep", "detail": "grep -rn 'scripts/register.py' over the tree: 4 invocations, all in commands/ — merge 1 (seance.md:75), render 2 (seance.md:77, exorcise.md:201), validate 1 (exorcise.md:157), rank 0.", "receipt": null},
+      {"kind": "trace", "detail": "merge() ends with `return rank(register)` (register.py:229), so every register the seance writes is already ranked; the register run in exorcise.md re-renders after each ghost (line 201) and never re-ranks.", "receipt": null},
+      {"kind": "grep", "detail": "tests/test_register.py calls the rank() function directly at lines 60, 66 and asserts merge's ranking at 94 — 3 references to rank(), 0 to the subcommand. The function is a `keep` site.", "receipt": null}
+    ],
+    "sites": [
+      {"path": "scripts/register.py", "line": 245, "role": "banish"},
+      {"path": "scripts/register.py", "line": 277, "role": "banish"},
+      {"path": "scripts/register.py", "line": 5, "role": "banish"},
+      {"path": "reference/register.md", "line": 69, "role": "migrate"},
+      {"path": "scripts/register.py", "line": 106, "role": "keep"}
+    ],
+    "blast_radius": {"files": 5, "callers": 0, "exported": true, "tests": 1},
+    "banishment": "delete the `rank` subcommand (sub.add_parser at 245, the `if args.cmd == \"rank\"` branch at 277-280, the usage line at 5) and reword reference/register.md:69 to say merge assigns rank; keep rank() at 106, which merge calls and 3 test assertions pin",
+    "confidence": "sourced",
+    "hold": null
+  },
+  {
+    "lane": "strata",
+    "title": "a tool-to-argv lookup table whose six entries each map a name to itself",
+    "concepts": ["receipts.resolve.on_path"],
+    "survivor": null,
+    "evidence": [
+      {"kind": "read", "detail": "receipts.py:104-107 reads `on_path = {\"scc\": [\"scc\"], \"ast-grep\": [\"ast-grep\"], \"jscpd\": [\"jscpd\"], \"knip\": [\"knip\"], \"ruff\": [\"ruff\"], \"depcruise\": [\"depcruise\"]}` — 6 of 6 entries map key to [key]. Lines 108-110 then loop that one-or-zero-element list and return [name].", "receipt": null},
+      {"kind": "grep", "detail": "resolve() has 1 call site (receipts.py:437), reached only for the 6 fetchable tools — sizes and churn return earlier at 429-436 — so the `.get(tool, [])` empty default is never taken; collapsing to `if shutil.which(tool): return [tool]` returns None for an unlisted tool exactly as today. 0 tests reference resolve.", "receipt": null}
+    ],
+    "sites": [
+      {"path": "scripts/receipts.py", "line": 104, "role": "banish"},
+      {"path": "scripts/receipts.py", "line": 108, "role": "migrate"}
+    ],
+    "blast_radius": {"files": 2, "callers": 0, "exported": false, "tests": 0},
+    "banishment": "delete the on_path dict (104-107) and replace the loop at 108-110 with `if shutil.which(tool): return [tool]`; keep the `sg` alias at 111-112, the one entry that is not an identity",
+    "confidence": "sourced",
+    "hold": null
+  },
+  {
+    "lane": "strata",
+    "title": "_load, a one-line json.loads wrapper with one caller",
+    "concepts": ["register._load"],
+    "survivor": null,
+    "evidence": [
+      {"kind": "tool", "detail": "ast-grep flagged register.py:232 _load as a single-call function whose callee is json.loads", "receipt": "ast-grep.json#single_call_functions[0]"},
+      {"kind": "grep", "detail": "grep -n '_load' scripts/register.py: 2 hits — the definition (232) and 1 caller (267). Its sibling _save has 2 callers (257, 278), so the pair is not symmetric. No test references _load.", "receipt": null},
+      {"kind": "read", "detail": "register.py:232-233 is `def _load(path): return json.loads(Path(path).read_text(encoding=\"utf-8\"))` — no default, no narrowing, no renamed parameter that the caller does not already have.", "receipt": null}
+    ],
+    "sites": [
+      {"path": "scripts/register.py", "line": 232, "role": "banish"},
+      {"path": "scripts/register.py", "line": 267, "role": "migrate"}
+    ],
+    "blast_radius": {"files": 2, "callers": 1, "exported": false, "tests": 0},
+    "banishment": "delete _load (232-233) and inline it at 267 as json.loads(Path(args.path).read_text(encoding=utf-8))",
+    "confidence": "sourced",
+    "hold": null
+  }
+]
