@@ -2,8 +2,10 @@
 
 ## Repo settings
 
-Matched to gauntlet: squash-merge only, delete branch on merge, PR required at 0
-approvals, branches up to date before merge, conversation resolution required, no
+Matched to gauntlet except the merge method: **merge commits only** (squash and rebase
+both rewrite SHAs, so a stacked child PR would re-carry its parent's commits after the
+parent lands; a true merge keeps them as ancestors). Delete branch on merge, PR required
+at 0 approvals, branches up to date before merge, conversation resolution required, no
 force-push or deletion of `main`, all CI checks required. Required contexts match the CI
 job names exactly:
 
@@ -22,8 +24,9 @@ uv run --no-project --with vermin==1.8.0 vermin --no-tips -t=3.9- scripts/
 
 ## Conventions
 
-- **Conventional Commits** for commit subjects and PR titles — the PR title drives the
-  semantic-release bump; a non-conforming title produces no release, not an error.
+- **Conventional Commits** for every commit subject — with merge commits, semantic-release
+  reads the branch's commits, not the PR title; a merge commit's own message is ignored.
+  A non-conforming subject produces no release, not an error.
 - **3.9 floor for `scripts/`**, enforced by vermin: they run on whatever `python3` the
   host has. `tests/` may use anything the CI matrix covers.
 - **Never edit the version in `.claude-plugin/plugin.json` by hand.** CI bumps it on
