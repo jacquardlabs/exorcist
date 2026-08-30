@@ -1,7 +1,7 @@
 {
   "name": "exorcist",
   "description": "Aggressive simplification for LLM-generated code. A standing ward that keeps slop from taking root, a changeset pass that traces every hunk to the stated intent and reverts what does not belong, and a codebase séance that hunts pattern contention, dead code, duplicated helpers, and wrapper strata with tool receipts. Scored in concepts removed, never lines.",
-  "version": "0.2.0",
+  "version": "0.3.0",
   "author": {
     "name": "Jacquard Labs"
   },
