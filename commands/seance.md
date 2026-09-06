@@ -19,7 +19,7 @@ outranks one that deletes 300 lines nobody reads.
 REF=$(git rev-parse --verify "${ARGUMENTS:-HEAD}")
 ROOT=<tmp>/tree
 git worktree add --detach "$ROOT" "$REF"
-REPO=$(git remote get-url origin 2>/dev/null | sed -E 's#.*[:/]([^/]+/[^/]+?)(\.git)?$#\1#' || basename "$(git rev-parse --show-toplevel)")
+REPO=$(git remote get-url origin 2>/dev/null | sed -E 's#^.*[:/]([^/]+/[^/]+)$#\1#; s#\.git$##' || basename "$(git rev-parse --show-toplevel)")
 ```
 
 Every lane reads `$ROOT` and every ghost cites `$REF`. The worktree is unconditional:
