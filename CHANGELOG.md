@@ -2,6 +2,14 @@
 
 <!-- version list -->
 
+## v0.4.2 (2026-09-06)
+
+### Bug Fixes
+
+- Derive seance REPO without a lazy quantifier so BSD sed accepts it
+  ([`b2e7529`](https://github.com/jacquardlabs/exorcist/commit/b2e75297b4c5bfaceb4e4b6ad6370d44c817b4be))
+
+
 ## v0.4.1 (2026-08-31)
 
 ### Bug Fixes
