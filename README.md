@@ -20,6 +20,7 @@ is a tripwire, never the goal.
 
 /exorcist:ward                                   # stance into CLAUDE.md — every future change
 /exorcist:exorcise "add retry to the webhook"    # this changeset vs. that intent — edits your tree
+/exorcist:exorcise --base main --json out.json "add retry to the webhook"   # explicit scope, JSON report
 /exorcist:seance                                 # whole repo at HEAD → a register, read-only
 /exorcist:exorcise docs/exorcist/seance-2026-08-29/register.json G-01,G-04
 ```
@@ -77,14 +78,16 @@ Same prompt, same repository, two clones — one warded:
 
 ### Exorcise — the possession is recent
 
-`/exorcist:exorcise [intent | PR]` takes the intent as input — a sentence, a PR body, or
-the branch's commit log — restates it as numbered claims, and holds every hunk of the
-diff against them. Four lanes run in parallel: does this hunk reach a claim; does this
+`/exorcist:exorcise [--base REF] [--json PATH] [intent | PR]` takes the intent as
+input — a sentence, a PR body, or the branch's commit log — restates it as numbered
+claims, and holds every hunk of the diff against them. Four lanes run in parallel: does this hunk reach a claim; does this
 new symbol have two callers and no prior shape; does this null-check belong at the
 value's entry point; what does this change let us delete. Then it edits the working
 tree: reverts what no claim reaches, inlines single-caller symbols, swaps new code for
 the helper that already existed, moves point-of-use fixes to the threshold. It never
-commits.
+commits. `--base` sets the diff scope (default `@{upstream}`, then `main`); `--json`
+also writes the report as versioned JSON (`reference/report.md`), validated before it
+is written, for a caller to read instead of the text.
 
 Run against an unwarded change on specdeck, with the intent that produced it:
 

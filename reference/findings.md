@@ -17,7 +17,9 @@ precedence when two findings claim the same lines: `hold` > `revert` > `delete` 
     "action": "revert | inline | reuse | move | delete | hold",
     "target": "src/webhook/sender.ts:30",
     "concepts": ["RetryPolicy"],
-    "hold": null
+    "hold": null,
+    "claim": null,
+    "next": null
   }
 ]
 ```
@@ -38,5 +40,11 @@ is a ghost scoped to one diff.
 - `concepts` — what stops existing if the action is taken. This is the score. Empty
   for `hold`.
 - `hold` — set only on `hold`, one of the values `reference/ghost.md` lists.
+- `claim` — the number of the claim the finding answers to, or `null`. Required on
+  `hold: "implied by intent"`.
+- `next` — set on every `hold`: one line, what the human or a register run would do.
+
+`scripts/report.py findings <reply>` validates a reply against this contract. A reply
+with any invalid finding is a lane that did not report.
 
 A lane with nothing to report returns `[]`.
