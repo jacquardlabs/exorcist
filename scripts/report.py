@@ -411,8 +411,39 @@ def _read_lane(path: Path) -> Tuple[List[str], Optional[List[Dict[str, Any]]]]:
     return errors, None if errors else data
 
 
+def guard_test_leads(findings: List[Dict[str, Any]], leads: Optional[Dict[str, Any]]) -> List[Dict[str, Any]]:
+    """A delete or revert over a test line that still references a retired value would
+    erase the one signal the diff breaks something: it becomes `behavior change`."""
+    pinned: Dict[Tuple[str, int], str] = {
+        (ref["path"], ref["line"]): lead["value"]
+        for lead in (leads or {}).get("leads", [])
+        for ref in lead.get("refs", [])
+        if ref.get("test")
+    }
+
+    def guard(f: Dict[str, Any]) -> Dict[str, Any]:
+        if f["action"] not in ("delete", "revert") or not f["file"]:
+            return f
+        hit = next(
+            ((line, value) for (path, line), value in sorted(pinned.items())
+             if path == f["file"] and f["line"] <= line <= (f["end_line"] or f["line"])),
+            None,
+        )
+        if hit is None:
+            return f
+        line, value = hit
+        return {
+            **f, "action": "hold", "target": None, "concepts": [], "hold": "behavior change",
+            "claim": None, "next": f"update {f['file']}:{line} for the retired {value!r}, or revert the change it pins",
+            "evidence": f"{f['evidence']} · test lead {f['file']}:{line} still asserts {value!r} (was {f['action']})",
+        }
+
+    return [guard(f) for f in findings]
+
+
 def merge(
-    lane_files: List[Path], tripwires: Dict[str, Any], scope: Dict[str, Any], single_pass: bool
+    lane_files: List[Path], tripwires: Dict[str, Any], scope: Dict[str, Any], single_pass: bool,
+    leads: Optional[Dict[str, Any]] = None,
 ) -> Tuple[Dict[str, Any], Dict[str, List[str]]]:
     """The report draft: lanes, deduped findings, out_of_intent_files, tripwires. Keys
     that need judgment are left null for the command; `validate` names any it misses."""
@@ -429,7 +460,7 @@ def merge(
             continue
         lanes[path.stem] = "reported"
         found[path.stem] = data
-    merged = dedup([f for lane in LANES for f in found.get(lane, [])])
+    merged = dedup(guard_test_leads([f for lane in LANES for f in found.get(lane, [])], leads))
     draft = {
         "contract_version": CONTRACT_VERSION,
         "generated": _dt.datetime.now(_dt.timezone.utc).strftime("%Y-%m-%dT%H:%M:%SZ"),
@@ -526,10 +557,11 @@ def _merge(args: argparse.Namespace) -> int:
     try:
         tripwires = json.loads(Path(args.tripwires).read_text(encoding="utf-8"))
         scope = json.loads(Path(args.scope).read_text(encoding="utf-8"))
+        leads = json.loads(Path(args.leads).read_text(encoding="utf-8")) if args.leads else None
     except (OSError, UnicodeDecodeError, json.JSONDecodeError) as exc:
         print(f"merge: {exc}")
         return 1
-    draft, errors = merge([Path(p) for p in args.lanes], tripwires, scope, args.single_pass)
+    draft, errors = merge([Path(p) for p in args.lanes], tripwires, scope, args.single_pass, leads)
     for lane, lane_errors in errors.items():
         _print_errors(f"{lane}: did not report —", lane_errors)
     Path(args.out).write_text(json.dumps(draft, indent=2, ensure_ascii=False) + "\n", encoding="utf-8")
@@ -554,6 +586,7 @@ def main() -> int:
     m.add_argument("--tripwires", required=True)
     m.add_argument("--scope", required=True)
     m.add_argument("--single-pass", action="store_true")
+    m.add_argument("--leads", help="leads.json from scripts/leads.py")
     sub.add_parser("validate").add_argument("path")
     args = parser.parse_args()
 

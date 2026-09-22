@@ -145,7 +145,8 @@ are not stored; they derive from `applied` and `held`.
 ## Writing it
 
 `report.py merge` writes the draft from the lane replies: `lanes`, `single_pass`, the
-deduped findings split into `applied` and `held`, `out_of_intent_files`, `scope` and
+deduped findings split into `applied` and `held` (with `--leads`, a `delete` or
+`revert` over a test lead line already converted to `hold: "behavior change"`), `out_of_intent_files`, `scope` and
 `tripwires` verbatim. It leaves null what needs judgment — `branch`, `intent`,
 `claims`, `concepts_removed`, `concepts_kept`, `checks`, `justifications`, each
 `applied[].status` and `outcome` — and the command fills those, adds the §4 guard

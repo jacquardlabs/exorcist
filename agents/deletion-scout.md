@@ -25,7 +25,14 @@ For each thing the diff adds or replaces, grep for what it supersedes:
   tier, a flag value) which the diff's own sites now break — grep the file for each such
   value; `evidence` quotes the line and the hunk it no longer matches.
 
-Each is `action: "delete"`, `evidence` the grep behind it — zero remaining uses, or the
+Open and read every test lead in `leads.json`, never judge one from its grep line. A
+lead whose assertion still pins a value the diff retired is not dead: the test now
+fails, and deleting it hides the break. Report it as `action: "hold"`, `hold: "behavior
+change"`, `evidence` its `path:line` and the assertion, `claim: null`, `next` one line.
+A lead read and cleared is no finding. A value with `dropped` above 0 has more
+references than the list shows: grep it yourself for the rest.
+
+The rest are `action: "delete"`, `evidence` the grep behind it — zero remaining uses, or the
 stale line and the hunk it no longer matches.
 `concepts` is what goes.
 
