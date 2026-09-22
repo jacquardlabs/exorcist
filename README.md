@@ -85,9 +85,10 @@ each claim reach a hunk; does this new symbol have two callers and no prior shap
 value's entry point; what does this change let us delete. Then it edits the working
 tree: reverts what no claim reaches, inlines single-caller symbols, swaps new code for
 the helper that already existed, moves point-of-use fixes to the threshold. It never
-commits. `--base` sets the diff scope (default `@{upstream}`, then `main`); `--json`
-also writes the report as versioned JSON (`reference/report.md`), validated before it
-is written, for a caller to read instead of the text; its `out_of_intent_files`
+commits. `--base` sets the diff scope (default the PR's base, then `@{upstream}`,
+`main`, `HEAD~1`); `--json` also writes the report as versioned JSON
+(`reference/report.md`), validated before it is written, for a caller to read instead
+of the text; its `out_of_intent_files`
 counts the files carrying a hunk no claim reaches and no doc argues for, before
 anything is reverted.
 

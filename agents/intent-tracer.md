@@ -84,8 +84,11 @@ The array in `reference/findings.md`, `lane: "trace"`. One finding per unreached
   empty, with its count.
 - `action: "hold"`, `hold: "spec conflict"` or `"behavior change"`, per Conflicts.
 
-`evidence` is the claim you tried to reach and why the line falls short, in one
-clause. `concepts` lists any symbol, file, or option the revert erases.
+`evidence` is one line. For a revert or a trust-boundary hold, it is the claim you
+tried to reach and why the line falls short, in one clause; every other hold carries
+what its rule above names — the claim it entails, the empty search with its count,
+the doc's or test's `path:line`. `concepts` lists any symbol, file, or option the
+revert erases.
 
 Every hold sets `next`: one line, what the human would do — "keep it and add a claim
 for it, or revert lines 18-22", "implement X in Y, or drop claim 2". Set `claim` to

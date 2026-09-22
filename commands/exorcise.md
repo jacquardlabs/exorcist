@@ -20,8 +20,8 @@ First take the flags off the front of `$ARGUMENTS`. Consume leading tokens only,
 stop at the first token that is neither flag, or at a literal `--`, which is itself
 consumed; everything after is the argument, left intact — an intent may say "--json".
 
-- `--base <ref>` or `--base=<ref>` — the diff base (§2). Default: `@{upstream}`, then
-  `main`, then `HEAD~1`.
+- `--base <ref>` or `--base=<ref>` — the diff base (§2). Default: the PR's base for a
+  PR argument, then `@{upstream}`, then `main`, then `HEAD~1`.
 - `--json <path>` or `--json=<path>` — also write the report as JSON to `<path>`, per
   `${CLAUDE_PLUGIN_ROOT}/reference/report.md` (§7). The parent directory must exist.
 
@@ -30,9 +30,11 @@ exist is an error: say which and stop before any work.
 
 Then, on what remains: if its first token is a path to an existing `.json` file, this
 is a **register run** — skip to "Working a register" at the end. With `--base` or
-`--json` set, print `--json/--base apply to changeset runs; a register run records
-its outcome in the register itself` and stop before loading the register. Otherwise
-it is a **changeset run**; the argument is the intent.
+`--json` set, before the path or after it, print `--json/--base apply to changeset
+runs; a register run records its outcome in the register itself` and stop before
+loading the register. Any other token after the path that starts with `--` is an
+error: say which and stop — it is never a ghost id. Otherwise it is a **changeset
+run**; the argument is the intent.
 
 ## 1. Gather the intent
 
@@ -58,8 +60,9 @@ python3 "${CLAUDE_PLUGIN_ROOT}/scripts/report.py" resolve-base [--base REF] [--p
 
 It prints `{"base_sha", "base_ref", "source"}`. The rule, in order: `--base` (a ref
 that does not resolve is an error, never a fallback); the PR's base (a `--base` that
-names a different commit is an error); `@{upstream}`; `main`; `HEAD~1`. `base_sha` is
-the merge-base with HEAD. Exit 2 → print its message and stop.
+names a different commit is an error); `@{upstream}` (one with no merge-base with HEAD
+is an error, never a fall-through to `main`); `main`; `HEAD~1`. `base_sha` is the
+merge-base with HEAD. Exit 2 → print its message and stop.
 
 `BASE` is `base_sha`; the apply step reads original hunk content from it. The diff is
 `git diff BASE...HEAD`. If there are uncommitted changes, or that diff is empty, add
@@ -120,7 +123,7 @@ Before touching anything, apply the ward's two guards to every finding in `appli
 
 - **Never a trust-boundary check.** If a `revert`, `delete`, or `move` would remove
   the first validation an external value meets, authorization, or a data-loss guard,
-  it becomes `hold`.
+  it becomes `hold`, `hold: "trust boundary"`.
 - **Minimal is not incomplete.** If a `revert` would remove a test or error path one of
   the claims implies, it becomes `hold`, `hold: "implied by intent"`, with that claim's
   number in `claim`.

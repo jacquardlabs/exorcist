@@ -48,7 +48,8 @@ REPORT_REQUIRED = (
 )
 SCOPE_REQUIRED = ("base_ref", "base_sha", "head_sha", "source", "includes_worktree", "hunks")
 TRIPWIRES_REQUIRED = ("added", "removed", "changed", "loc_limit", "files", "new_exports", "new_deps", "warnings")
-SHA = re.compile(r"^[0-9a-f]{40}$")
+# SHA-1 or SHA-256 object ids: a repository uses one or the other.
+SHA = re.compile(r"^(?:[0-9a-f]{40}|[0-9a-f]{64})$")
 GENERATED = re.compile(r"^\d{4}-\d\d-\d\dT\d\d:\d\d:\d\dZ$")
 
 
@@ -133,7 +134,7 @@ def validate_finding(f: Any, where: str) -> List[str]:
 def parse_reply(text: str) -> Any:
     """One code fence around the whole reply is transport; strip it, nothing more."""
     text = text.strip()
-    fence = re.match(r"^```[a-zA-Z]*\n(.*)\n```$", text, re.S)
+    fence = re.match(r"^```[a-zA-Z]*\r?\n(.*)\r?\n```$", text, re.S)
     return json.loads(fence.group(1) if fence else text)
 
 
@@ -177,7 +178,7 @@ def _check_claims(claims: Any) -> List[str]:
         for i, c in enumerate(claims)
         if not (isinstance(c, dict) and _is_int(c.get("n")) and _one_line(c.get("text")))
     ]
-    numbers = [c.get("n") for c in claims if isinstance(c, dict)]
+    numbers = [c["n"] for c in claims if isinstance(c, dict) and _is_int(c.get("n"))]
     if len(set(numbers)) != len(numbers):
         errors.append("claims: duplicate n")
     return errors
@@ -191,7 +192,7 @@ def _check_scope(scope: Any) -> List[str]:
         return errors
     if not _one_line(scope["base_ref"]):
         errors.append("scope.base_ref must be one line")
-    errors += [f"scope.{k} must be a 40-char sha" for k in ("base_sha", "head_sha") if not SHA.match(str(scope[k]))]
+    errors += [f"scope.{k} must be a 40- or 64-char sha" for k in ("base_sha", "head_sha") if not SHA.match(str(scope[k]))]
     if scope["source"] not in BASE_SOURCES:
         errors.append(f"scope.source {scope['source']!r} not in {BASE_SOURCES}")
     if not isinstance(scope["includes_worktree"], bool):
@@ -265,7 +266,7 @@ def _check_concepts(report: Dict[str, Any]) -> List[str]:
     elif isinstance(report["applied"], list):
         done = {
             c for f in report["applied"]
-            if isinstance(f, dict) and f.get("status") == "applied" and isinstance(f.get("concepts"), list)
+            if isinstance(f, dict) and f.get("status") == "applied" and _str_list(f.get("concepts"))
             for c in f["concepts"]
         }
         if set(removed) != done:
@@ -402,7 +403,7 @@ def _read_lane(path: Path) -> Tuple[List[str], Optional[List[Dict[str, Any]]]]:
     """A lane's findings, or the errors that make it a lane that did not report."""
     try:
         data = parse_reply(path.read_text(encoding="utf-8"))
-    except (OSError, json.JSONDecodeError) as exc:
+    except (OSError, UnicodeDecodeError, json.JSONDecodeError) as exc:
         return [f"does not parse: {exc}"], None
     errors = validate_findings(data)
     if not errors:
@@ -454,7 +455,10 @@ def merge(
 
 
 def _git(args: List[str], cwd: Optional[str]) -> Optional[str]:
-    done = subprocess.run(["git", *args], cwd=cwd, capture_output=True, text=True, check=False)
+    try:
+        done = subprocess.run(["git", *args], cwd=cwd, capture_output=True, text=True, check=False)
+    except OSError as exc:
+        raise ResolveError(f"git did not run: {exc}") from exc
     return done.stdout.strip() if done.returncode == 0 else None
 
 
@@ -490,11 +494,19 @@ def resolve_base(base: Optional[str] = None, pr_base: Optional[str] = None, cwd:
             raise ResolveError(f"the PR's base {pr_base} is not in this clone — fetch it")
         return {"base_sha": _merge_base(tip, cwd), "base_ref": pr_base, "source": "pr"}
     upstream = _git(["rev-parse", "--abbrev-ref", "--symbolic-full-name", "@{upstream}"], cwd)
-    for ref, source in ((upstream, "upstream"), ("main", "main"), ("HEAD~1", "head~1")):
-        tip = _commit(ref, cwd) if ref else None
+    if upstream:
+        # A configured upstream is the base the branch declares; falling past it to
+        # main would diff against a base nobody chose.
+        tip = _commit(upstream, cwd)
+        merge_base = _git(["merge-base", tip, "HEAD"], cwd) if tip else None
+        if not merge_base:
+            raise ResolveError(f"no merge-base between @{{upstream}} {upstream} and HEAD — pass --base")
+        return {"base_sha": merge_base, "base_ref": upstream, "source": "upstream"}
+    for ref, source in (("main", "main"), ("HEAD~1", "head~1")):
+        tip = _commit(ref, cwd)
         merge_base = _git(["merge-base", tip, "HEAD"], cwd) if tip else None
         if merge_base:
-            return {"base_sha": merge_base, "base_ref": str(ref), "source": source}
+            return {"base_sha": merge_base, "base_ref": ref, "source": source}
     raise ResolveError("no base: no upstream, no main, and HEAD is a root commit — pass --base")
 
 
@@ -511,7 +523,7 @@ def _merge(args: argparse.Namespace) -> int:
     try:
         tripwires = json.loads(Path(args.tripwires).read_text(encoding="utf-8"))
         scope = json.loads(Path(args.scope).read_text(encoding="utf-8"))
-    except (OSError, json.JSONDecodeError) as exc:
+    except (OSError, UnicodeDecodeError, json.JSONDecodeError) as exc:
         print(f"merge: {exc}")
         return 1
     draft, errors = merge([Path(p) for p in args.lanes], tripwires, scope, args.single_pass)
@@ -556,7 +568,7 @@ def main() -> int:
     try:
         text = Path(args.path).read_text(encoding="utf-8")
         data = parse_reply(text) if args.cmd == "findings" else json.loads(text)
-    except (OSError, json.JSONDecodeError) as exc:
+    except (OSError, UnicodeDecodeError, json.JSONDecodeError) as exc:
         print(f"{args.path}: does not parse: {exc}")
         return 1
     if args.cmd == "findings":

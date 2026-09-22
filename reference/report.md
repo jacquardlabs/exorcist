@@ -92,11 +92,12 @@ are not stored; they derive from `applied` and `held`.
   cite claims by `n`.
 - `scope` — what the diff covered, from `report.py resolve-base`. `base_sha` is the
   merge-base of the resolved base and HEAD — the commit the three-dot diff compares
-  against and §5 restores from. `base_ref` is the name that was resolved. `source` is
-  the rule that chose it: `flag` (`--base`), `pr` (the PR's `baseRefOid`), `upstream`
-  (`@{upstream}`, recorded by its name), `main`, or `head~1`. `includes_worktree` is
-  true when §2 added `git diff HEAD`. `hunks` is at least 1; an empty diff writes no
-  report.
+  against and §5 restores from. `base_ref` is the ref that was resolved, as written:
+  the `--base` value, the upstream's name, `main`, or `HEAD~1` — for `pr`, the raw
+  `baseRefOid` SHA. `source` is the rule that chose it: `flag` (`--base`), `pr` (the
+  PR's `baseRefOid`), `upstream` (`@{upstream}`), `main`, or `head~1`.
+  `includes_worktree` is true when §2 added `git diff HEAD`. `hunks` is at least 1; an
+  empty diff writes no report.
 - `lanes` — `trace`, `abstraction`, `threshold`, `deletion`, each `reported` or `did
   not report`. A lane did not report when its reply failed `report.py findings`.
 - `single_pass` — true when §3 ran without the Agent tool: the evidence is one
@@ -143,8 +144,8 @@ are not stored; they derive from `applied` and `held`.
 
 ## Writing it
 
-`report.py merge` writes the draft from the lane replies: `lanes`, the deduped
-findings split into `applied` and `held`, `out_of_intent_files`, `scope` and
+`report.py merge` writes the draft from the lane replies: `lanes`, `single_pass`, the
+deduped findings split into `applied` and `held`, `out_of_intent_files`, `scope` and
 `tripwires` verbatim. It leaves null what needs judgment — `branch`, `intent`,
 `claims`, `concepts_removed`, `concepts_kept`, `checks`, `justifications`, each
 `applied[].status` and `outcome` — and the command fills those, adds the §4 guard

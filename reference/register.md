@@ -64,8 +64,10 @@ has marked it so. `scripts/register.py` validates, ranks, and renders it.
 - `confidence` — `sourced` when every evidence entry is a count or receipt; `inferred`
   when any is a judgment. Inferred ghosts rank below sourced at equal score.
 - `hold` — set by the lane when the ghost is real but must not be applied without a
-  human decision: `trust boundary`, `public API`, `behavior change`, `spec conflict`.
-  Written as `status: proposed` with `hold` set; the human decides.
+  human decision: `public API`, `trust boundary`, `behavior change`, `spec conflict`,
+  `blast radius: N consumers outside the diff`, `implied by intent`. `reference/ghost.md`
+  defines them and governs; its `unmet claim` is changeset-only and never appears in a
+  register. Written as `status: proposed` with `hold` set; the human decides.
 - `also` — set by the merge when a second lane reported the same ghost (a banish or
   migrate site at the same path and line); the survivor keeps its lane, absorbs the
   other's evidence, and lists the other lane here.
