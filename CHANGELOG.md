@@ -2,6 +2,19 @@
 
 <!-- version list -->
 
+## v0.5.0 (2026-09-22)
+
+### Documentation
+
+- Record séance effort comparison on Opus 5.5
+  ([`f017a43`](https://github.com/jacquardlabs/exorcist/commit/f017a433e86c0995e75e0fb3ab82406659829618))
+
+### Features
+
+- Run changeset lanes on opus (Opus 5.5)
+  ([`cd94a8a`](https://github.com/jacquardlabs/exorcist/commit/cd94a8a1c9ec9a4fa687c25084854f78c17e847c))
+
+
 ## v0.4.2 (2026-09-06)
 
 ### Bug Fixes
