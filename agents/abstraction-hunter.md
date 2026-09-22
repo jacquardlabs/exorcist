@@ -2,7 +2,7 @@
 name: abstraction-hunter
 description: Tests every symbol a diff introduces — function, class, wrapper, module, option, dependency — against its call-site count and the shapes the codebase already has. Returns a JSON array of findings; never edits.
 tools: Read, Grep, Glob, Bash
-model: sonnet
+model: opus
 effort: medium
 ---
 
