@@ -203,8 +203,8 @@ def test_numeric_tokens_are_counted_apart_from_short_ones():
 
 def test_hunk_counts_keep_a_removed_double_dash_line_out_of_the_headers():
     diff = "--- a/q.sql\n+++ b/q.sql\n@@ -1,2 +1,1 @@\n--- old_table_name note\n select 1;\n"
-    changed, minus, plus = leads.parse(diff)
-    assert changed == {"q.sql"} and minus == [("q.sql", 1, "-- old_table_name note")] and plus == [], minus
+    paths, minus, plus = leads.parse(diff)
+    assert paths == {"q.sql": "q.sql"} and minus == [("q.sql", 1, "-- old_table_name note")] and plus == [], minus
 
 
 NUMBER_DIFF = """\
@@ -264,8 +264,11 @@ def test_bindings_need_a_name_and_a_number_that_ends_the_value():
     pairs = {
         "MAX_RETRIES = 3": {("MAX_RETRIES", "3")},
         "const MAX_RETRIES: number = 3;": {("MAX_RETRIES", "3")},
-        "client(retries=3, timeout=2.5)": {("retries", "3"), ("timeout", "2.5")},
+        "client(max_retries=3, RETRIES=4, timeout=2.5)": {("max_retries", "3"), ("RETRIES", "4")},
         '  "retries": 3,': {("retries", "3")},
+        'local gate="" findings=0 MAX_A=1 MAX_B=2': {("MAX_A", "1"), ("MAX_B", "2")},
+        "retries: { audit: 2 }": set(),
+        "  margin: 0;": set(),
         "self.max_retries = -1  # none": {("max_retries", "-1")},
         "if retries == 3:": set(),
         "delay = 3 * base": set(),
@@ -275,6 +278,35 @@ def test_bindings_need_a_name_and_a_number_that_ends_the_value():
     for line, want in pairs.items():
         got = {(k, t) for kind, k, t in leads.values("src/x.py", line) if kind == "number"}
         assert got == want, (line, got)
+
+
+def test_a_shell_binding_followed_by_another_is_still_bound():
+    diff = (
+        '--- a/run.sh\n+++ b/run.sh\n@@ -1,1 +1,1 @@\n-local gate="" MAX_FINDINGS=0\n'
+        '+local gate="" MAX_FINDINGS=0 MAX_HISTORY=0\n'
+    )
+    files = {"run.sh": 'local gate="" MAX_FINDINGS=0 MAX_HISTORY=0\n', "tests/test_run.sh": "check MAX_FINDINGS=0\n"}
+    with tempfile.TemporaryDirectory() as tmp:
+        result = leads.leads(diff, _tree(tmp, files))
+    # The pair is still on the '+' line, only no longer last on it.
+    assert result["leads"] == [] and result["filtered"]["still_added"] >= 1, result
+
+
+def test_a_plain_word_bound_to_a_number_in_code_is_not_a_lead():
+    diff = "--- a/src/job.py\n+++ b/src/job.py\n@@ -1,1 +1,1 @@\n-subprocess.run(cmd, timeout=30)\n+run(cmd)\n"
+    files = {"src/job.py": "run(cmd)\n", "tests/test_job.py": "subprocess.run(other, timeout=30)\n"}
+    with tempfile.TemporaryDirectory() as tmp:
+        result = leads.leads(diff, _tree(tmp, files))
+    # Deleting one call site's kwarg retires no policy; another call site's kwarg is no pin.
+    assert all(" = " not in lead["value"] for lead in result["leads"]), result["leads"]
+
+
+def test_a_number_bound_in_a_test_fixture_is_not_retired():
+    diff = '--- a/tests/test_board.py\n+++ b/tests/test_board.py\n@@ -1,1 +0,0 @@\n-    "retries": {"audit": 1},\n'
+    files = {"tests/test_board.py": "", "tests/test_gate.py": 'assert r["audit"] == 1\n'}
+    with tempfile.TemporaryDirectory() as tmp:
+        result = leads.leads(diff, _tree(tmp, files))
+    assert all("number" not in lead["kinds"] for lead in result["leads"]), result["leads"]
 
 
 def test_prose_shaped_like_yaml_outside_frontmatter_retires_nothing():
@@ -318,13 +350,30 @@ def test_frontmatter_ends_per_side_from_the_new_file_and_the_diff():
     files = {"a.md": "---\nname: a\neffort: low\ntier: 2\nmodel: x\n---\nkey: v\n"}
     with tempfile.TemporaryDirectory() as tmp:
         root = _tree(tmp, files, git=False)
-        _, minus, plus = leads.parse(grown + gone)
-        ends = leads.frontmatter(root, minus, plus)
+        paths, minus, plus = leads.parse(grown + gone)
+        ends = leads.frontmatter(root, paths, minus, plus)
         # A new side that disagrees with the diff is not trusted past the diff's own lines.
         (root / "a.md").write_text("---\nstale\n---\n")
-        stale = leads.frontmatter(root, minus, plus)
+        stale = leads.frontmatter(root, paths, minus, plus)
     assert ends == {("-", "a.md"): 4, ("+", "a.md"): 6, ("-", "b.md"): 3, ("+", "b.md"): 0}, ends
     assert stale[("-", "a.md")] == 0 and stale[("+", "a.md")] == 0, stale
+
+
+def test_a_renamed_markdown_file_still_retires_its_frontmatter_value():
+    diff = (
+        "diff --git a/old.md b/new.md\nsimilarity index 80%\nrename from old.md\nrename to new.md\n"
+        "--- a/old.md\n+++ b/new.md\n@@ -3,1 +3,1 @@\n-model: inherit\n+model: opus\n"
+    )
+    files = {"new.md": "---\nname: a\nmodel: opus\n---\n", "tests/test_pins.py": 'assert model == "inherit"\n'}
+    with tempfile.TemporaryDirectory() as tmp:
+        root = _tree(tmp, files)
+        paths, minus, plus = leads.parse(diff)
+        ends = leads.frontmatter(root, paths, minus, plus)
+        result = leads.leads(diff, root)
+    # The old side is rebuilt from the new path's content, not from the vanished old path.
+    assert paths == {"old.md": "new.md"} and ends == {("-", "old.md"): 4, ("+", "new.md"): 4}, (paths, ends)
+    refs, lead = _refs(result, "inherit")
+    assert lead["kinds"] == ["yaml"] and lead["retired"] == ["old.md:3"] and refs == ["tests/test_pins.py:1"], lead
 
 
 def test_cli_prints_json():
