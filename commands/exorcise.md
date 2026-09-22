@@ -1,7 +1,7 @@
 ---
 description: Audit the current changeset (or a PR) against its stated intent, then apply — revert hunks nothing in the intent reaches, inline single-caller abstractions, swap new code for existing helpers, move point-of-use fixes to the entry point, delete what the change made unnecessary. Pass the intent as text, a PR number or URL, or nothing to read it from the branch. Pass a séance register path to work a register instead.
 allowed-tools: Bash, Read, Edit, Write, Glob, Grep, Task, AskUserQuestion
-argument-hint: "[intent | PR number or URL | path/to/register.json]"
+argument-hint: "[--base REF] [--json PATH] [intent | PR number or URL | path/to/register.json]"
 ---
 
 # Exorcise
@@ -16,17 +16,31 @@ this change belong here at all?
 
 ## 0. Mode
 
-If the first token of `$ARGUMENTS` is a path to an existing `.json` file, this is a
-**register run** — skip to "Working a register" at the end. Otherwise it is a
-**changeset run**; the argument is the intent.
+First take the flags off the front of `$ARGUMENTS`. Consume leading tokens only, and
+stop at the first token that is neither flag, or at a literal `--`, which is itself
+consumed; everything after is the argument, left intact — an intent may say "--json".
+
+- `--base <ref>` or `--base=<ref>` — the diff base (§2). Default: `@{upstream}`, then
+  `main`, then `HEAD~1`.
+- `--json <path>` or `--json=<path>` — also write the report as JSON to `<path>`, per
+  `${CLAUDE_PLUGIN_ROOT}/reference/report.md` (§7). The parent directory must exist.
+
+A flag with no value, a flag given twice, or a `--json` path whose directory does not
+exist is an error: say which and stop before any work.
+
+Then, on what remains: if its first token is a path to an existing `.json` file, this
+is a **register run** — skip to "Working a register" at the end. With `--base` or
+`--json` set, print `--json/--base apply to changeset runs; a register run records
+its outcome in the register itself` and stop before loading the register. Otherwise
+it is a **changeset run**; the argument is the intent.
 
 ## 1. Gather the intent
 
 The intent is the input everything traces to. Get it, in this order:
 
-- `$ARGUMENTS` is a PR number or URL → `gh pr view <n> --json title,body,baseRefOid,headRefOid,headRefName`. Intent is the title and body. If `git rev-parse HEAD` is not `headRefOid`, say so and stop: applying against a different tree than the one described is how a fix lands in the wrong place.
-- `$ARGUMENTS` is text → that is the intent.
-- Empty → read the branch: `git log --format='%s%n%b' <base>..HEAD`. Commit subjects are usually enough. If the log is empty or is one word ("wip", "fix"), ask the human for the intent in one sentence with AskUserQuestion, and stop until they answer. Never invent it.
+- The argument is a PR number or URL → `gh pr view <n> --json title,body,baseRefOid,headRefOid,headRefName`. Intent is the title and body. If `git rev-parse HEAD` is not `headRefOid`, say so and stop: applying against a different tree than the one described is how a fix lands in the wrong place.
+- The argument is text → that is the intent.
+- Empty → resolve `BASE` (§2) first, then read the branch: `git log --format='%s%n%b' BASE..HEAD`. Commit subjects are usually enough. If the log is empty or is one word ("wip", "fix"), ask the human for the intent in one sentence with AskUserQuestion, and stop until they answer. Never invent it.
 
 Restate the intent as **numbered claims** — each one thing the change must do —
 followed by the obligations the claims imply: tests where the project keeps them
@@ -35,11 +49,21 @@ claim entails. This list is what every hunk answers to. Print it before anything
 
 ## 2. Gather the diff
 
-Same scope rule as `/simplify`: `git diff @{upstream}...HEAD`, or `git diff
-main...HEAD` / `git diff HEAD~1` without an upstream. If there are uncommitted changes,
-or the range diff is empty, add `git diff HEAD` — the pass usually runs before the
-commit. A PR argument uses `git diff <baseRefOid>...<headRefOid>`. Record `BASE`; the
-apply step reads original hunk content from it.
+Resolve the base. Pass `--base` when it was given and `--pr-base <baseRefOid>` for a
+PR argument:
+
+```bash
+python3 "${CLAUDE_PLUGIN_ROOT}/scripts/report.py" resolve-base [--base REF] [--pr-base SHA]
+```
+
+It prints `{"base_sha", "base_ref", "source"}`. The rule, in order: `--base` (a ref
+that does not resolve is an error, never a fallback); the PR's base (a `--base` that
+names a different commit is an error); `@{upstream}`; `main`; `HEAD~1`. `base_sha` is
+the merge-base with HEAD. Exit 2 → print its message and stop.
+
+`BASE` is `base_sha`; the apply step reads original hunk content from it. The diff is
+`git diff BASE...HEAD`. If there are uncommitted changes, or that diff is empty, add
+`git diff HEAD` — the pass usually runs before the commit.
 
 Write the diff to `<tmp>/diff.patch` and run the tripwires:
 
@@ -57,34 +81,52 @@ Dispatch the four lanes **in parallel** via the Agent tool, one call each in a s
 message: `exorcist:intent-tracer`, `exorcist:abstraction-hunter`,
 `exorcist:threshold-salter`, `exorcist:deletion-scout`. Each gets the same context:
 
-- the numbered claims, verbatim;
+- the numbered claims and their obligations, verbatim, and the intent as gathered in
+  §1 — the tracer's reverse roll call checks each claim against the diff, and a claim
+  that quotes a design section against that section's words;
 - the path to `<tmp>/diff.patch` and to `<tmp>/tripwires.json`;
 - the repository root and `BASE`;
 - the resolved absolute path of `${CLAUDE_PLUGIN_ROOT}/reference/findings.md` and
   the instruction that its entire reply is one JSON array per that contract, nothing
   else.
 
-Write each reply verbatim to `<tmp>/findings/<lane>.json`. Strip exactly one code
-fence wrapped around the whole reply — that is transport, not content. A reply that
-still does not parse as a JSON array is a lane that did not report — say which in the
-report, do not repair or re-ask.
+Write each reply verbatim to `<tmp>/findings/<lane>.json`, named by the findings lane
+(`trace`, `abstraction`, `threshold`, `deletion`). Write the resolve-base object plus
+`head_sha`, `includes_worktree`, and `hunks` to `<tmp>/scope.json`, then merge:
 
-Without the Agent tool: run the four lanes yourself in one pass, same contract, and say
-in the report that it was a single pass.
+```bash
+python3 "${CLAUDE_PLUGIN_ROOT}/scripts/report.py" merge <tmp>/report.json <tmp>/findings/*.json \
+  --tripwires <tmp>/tripwires.json --scope <tmp>/scope.json [--single-pass]
+```
+
+It strips exactly one code fence wrapped around each reply — that is transport, not
+content — and validates every finding against the contract. A lane with any invalid
+finding did not report: merge prints its errors; say which lane in the report, do not
+repair or re-ask. It writes the draft report — lanes, deduped findings, and
+`out_of_intent_files` — whether or not `--json` was given; §4 to §7 work from it.
+
+Without the Agent tool: run the four lanes yourself in one pass, same contract, write
+the four arrays the same way, pass `--single-pass`, and say in the report that it was
+a single pass.
 
 ## 4. Decide
 
-Merge the arrays. Dedup findings that share `file` + `line` or the same `target`,
-keeping the highest-precedence action: `hold` > `revert` > `delete` > `inline` >
-`reuse` > `move`.
+Merge has already deduped: findings that share `file` + `line`, the same `target`
+across lanes, or the same unmet claim keep the highest-precedence action (`hold` > `revert` > `delete`
+> `inline` > `reuse` > `move`), and the losing lane is in the survivor's `also`. The
+draft's `applied` holds every finding to act on, `held` every hold.
 
-Then, before touching anything, apply the ward's two guards to every finding:
+Before touching anything, apply the ward's two guards to every finding in `applied`:
 
 - **Never a trust-boundary check.** If a `revert`, `delete`, or `move` would remove
   the first validation an external value meets, authorization, or a data-loss guard,
   it becomes `hold`.
 - **Minimal is not incomplete.** If a `revert` would remove a test or error path one of
-  the claims implies, it becomes `hold`, `hold: "implied by intent"`.
+  the claims implies, it becomes `hold`, `hold: "implied by intent"`, with that claim's
+  number in `claim`.
+
+A finding converted to `hold` moves to `held` with `target: null`, `concepts: []`,
+`claim` (the claim it answers to, or null), and a `next` line.
 
 A `move` whose entry point lies outside the files the diff touches stays `hold` with
 the consumer count; a register run or the human works it.
@@ -132,7 +174,8 @@ Traced <n> · Reverted <n> · Rewritten <n> · Deleted <n> · Held <n>
 - …
 
 ## Held
-- <file>:<lines>  <title> — <hold>. <what the human or register run would do>
+- <file>:<lines>  <title> — <hold>. <evidence> <what the human or register run would do>
+- claim <n>  <title> — unmet claim: "<claim text>". <evidence> <what the human would do>
 
 Concepts removed: <list> · Concepts kept: <new symbols that survived, each with its caller count>
 Tripwires: <the text line> — <one sentence per crossed wire>
@@ -142,6 +185,26 @@ Next: /simplify for cosmetic cleanup.
 
 Sections with nothing in them are omitted. A change with no findings gets the header,
 `Nothing to cast out — every hunk traced.`, the concepts line, and the tripwires line.
+The Held line's closing clause is the finding's `next`; a hold that answers to a claim
+also quotes it (`claim <n>: "<text>"`). An unmet claim has no `file:lines` and leads
+with its claim number. Each Held line reads without the rest of the report — nothing
+downstream re-raises a hold.
+
+With `--json`, print the text report unchanged, then finish `<tmp>/report.json` per
+`${CLAUDE_PLUGIN_ROOT}/reference/report.md`. Merge wrote `scope`, `lanes`,
+`single_pass`, `tripwires`, and `out_of_intent_files`; never edit them. Fill `branch`,
+`intent`, `claims` from §1, each `applied` entry's `status` and `outcome` from §5,
+§4's guard conversions in `held`, `concepts_removed`, `concepts_kept` with their
+caller counts, `checks` from §6, and one `justifications` entry per warning. Then:
+
+```bash
+python3 "${CLAUDE_PLUGIN_ROOT}/scripts/report.py" validate <tmp>/report.json
+```
+
+Exit 0 → copy it to the `--json` path and print `JSON: <path>`. Exit 1 → print the
+errors and `JSON: not written — the report failed validation`, and leave the path
+untouched. Do not repair the draft to get it past the validator. An early stop — PR
+head mismatch, no intent, empty diff, unresolved base — writes no JSON.
 
 ## Working a register
 

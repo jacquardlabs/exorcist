@@ -35,9 +35,10 @@ the point.
      `action: "move"`, `target` the entry `path:line`. The fix moves; the local check
      comes out.
    - Unfixed consumers > 0 → `action: "hold"`, `hold: "blast radius: N
-     consumers outside the diff"`, `target` still names the entry so the human can
-     act. This is the finding that matters most; the register phase or a human works
-     it.
+     consumers outside the diff"`, `target: null`, the entry `path:line` first in
+     `evidence` so the human can act, `claim: null`, and `next` one line: move the fix
+     to the entry and drop the N local checks. This is the finding that matters most;
+     the register phase or a human works it.
    - The value is user input, a credential, or crosses a process boundary and the
      check is the first one it meets → it is a trust boundary. No finding.
 
