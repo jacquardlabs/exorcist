@@ -152,5 +152,21 @@ technicality lens.
 
 What the after side gained: the Critical telemetry break the recorded exorcise missed
 (trace-1, running the test), an unmet claim 9(b) over 31 non-judge dispatches (trace-2),
-and 8 stale-text deletes (deletion-2 to -9), two of them the recorded exorcise's holds. Nothing was re-run after the agent edits, so the "covered"
-calls in the last section are by reading only. The next real build is the check.
+and 8 stale-text deletes (deletion-2 to -9), two of them the recorded exorcise's holds. 
+
+## Re-run after the rule edits
+
+intent-tracer and deletion-scout re-ran on the same replay with the edited prompts.
+
+| LOST item | Rule | Re-run |
+|---|---|---|
+| inspector-2 / product-reviewer-6 (DESIGN.md omits the full-ID rule, claim 6) | intent-tracer: a claim that one file matches another | caught — `unmet claim`, claim 6 |
+| inspector-5 / product-reviewer-2 (CONTRIBUTING.md:118 vs PRODUCT.md:28-30) | intent-tracer: reached-hunk spec conflict | caught — `spec conflict` at CONTRIBUTING.md:118-124, claim 7 |
+| inspector-6 (`epic-driver.js:1075` "opus reserved" comment) | deletion-scout: stale rule about an added value | caught — `delete` at :1075-1076 |
+
+The three rules fire, so nothing assigned to exorcist stays LOST. The re-run exposed variance
+the first run hid: neither re-run lane raised the Critical telemetry break
+(`tests/test_dispatch_telemetry.sh:70`), which trace-1 and deletion-1 caught the first time.
+Both lanes grepped the line and dismissed it without reading it. deletion-scout found 7
+findings against the first run's 11. One lane run cannot yet vouch for a finding that
+gauntlet would otherwise have re-raised; the next real build is the check.
