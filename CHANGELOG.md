@@ -2,6 +2,24 @@
 
 <!-- version list -->
 
+## v0.7.0 (2026-09-22)
+
+### Bug Fixes
+
+- Hold, never delete, a test that still asserts a retired value
+  ([`8bca5e4`](https://github.com/jacquardlabs/exorcist/commit/8bca5e48a3e61fafc2dd581f0146c5317fc89d3c))
+
+### Documentation
+
+- Record 3-run measurement for deterministic leads
+  ([`589f76f`](https://github.com/jacquardlabs/exorcist/commit/589f76fd9989b1a64785ba9df9d51772561520f2))
+
+### Features
+
+- Hand exorcise lanes deterministic leads for values a diff retires
+  ([`4c8fae0`](https://github.com/jacquardlabs/exorcist/commit/4c8fae0ea7bbb7e801875e787ab1f1555d2559ea))
+
+
 ## v0.6.1 (2026-09-22)
 
 ### Bug Fixes
