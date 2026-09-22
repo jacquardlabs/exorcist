@@ -1,9 +1,10 @@
 # Findings contract — changeset lanes
 
 Every `/exorcist:exorcise` lane returns one JSON array and nothing else.
-`scripts/report.py merge` dedups across lanes by `file` + `line`, then by `target`,
+`scripts/report.py merge` dedups by `file` + `line`, then across lanes by `target`,
 and unmet claims by `claim`, keeping this order of precedence when two findings claim
-the same lines: `hold` > `revert` > `delete` > `inline` > `reuse` > `move`.
+the same lines: `hold` > `revert` > `delete` > `inline` > `reuse` > `move`. One lane's
+two findings on one `target` at different lines are two edits and both survive.
 
 ```json
 [

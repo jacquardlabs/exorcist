@@ -88,7 +88,8 @@ the helper that already existed, moves point-of-use fixes to the threshold. It n
 commits. `--base` sets the diff scope (default `@{upstream}`, then `main`); `--json`
 also writes the report as versioned JSON (`reference/report.md`), validated before it
 is written, for a caller to read instead of the text; its `out_of_intent_files`
-counts the files carrying a hunk no claim reaches, before anything is reverted.
+counts the files carrying a hunk no claim reaches and no doc argues for, before
+anything is reverted.
 
 Run against an unwarded change on specdeck, with the intent that produced it:
 

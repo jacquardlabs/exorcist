@@ -111,8 +111,8 @@ a single pass.
 
 ## 4. Decide
 
-Merge has already deduped: findings that share `file` + `line`, the same `target`, or
-the same unmet claim keep the highest-precedence action (`hold` > `revert` > `delete`
+Merge has already deduped: findings that share `file` + `line`, the same `target`
+across lanes, or the same unmet claim keep the highest-precedence action (`hold` > `revert` > `delete`
 > `inline` > `reuse` > `move`), and the losing lane is in the survivor's `also`. The
 draft's `applied` holds every finding to act on, `held` every hold.
 

@@ -60,7 +60,9 @@ Two more holds, for what the human must settle rather than what you can trace:
 
 - `hold: "spec conflict"` — an unreached hunk that a context doc (`CLAUDE.md`,
   `PRODUCT.md`, `DESIGN.md`, a design doc) argues for, or a claim that contradicts
-  one. `evidence` quotes the doc's `path:line`.
+  one. `evidence` quotes the doc's `path:line`. For a contradicting claim, `file`,
+  `line`, `end_line` are the hunk that satisfies it and `claim` is its `n`; a claim no
+  hunk satisfies is an `unmet claim`, with the doc in its `evidence`.
 - `hold: "behavior change"` — a hunk a claim reaches that alters behavior a test
   outside the diff pins, and the diff does not update that test. `evidence` names the
   test's `path:line` and what it asserts.

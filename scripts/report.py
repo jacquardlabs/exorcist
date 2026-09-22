@@ -207,19 +207,17 @@ def _check_lanes(lanes: Any, single_pass: Any) -> List[str]:
     errors = [f"lanes.{k} {v!r} not in {LANE_STATUSES}" for k, v in lanes.items() if v not in LANE_STATUSES]
     if not isinstance(single_pass, bool):
         errors.append("single_pass must be a boolean")
-    elif single_pass and any(v != "reported" for v in lanes.values()):
-        errors.append("single_pass: every lane is reported in a single pass")
     return errors
 
 
-def _check_also(f: Dict[str, Any], where: str) -> List[str]:
+def _check_also(f: Dict[str, Any], where: str, reported: List[str]) -> List[str]:
     also = f.get("also")
-    if not isinstance(also, list) or any(a not in LANES or a == f.get("lane") for a in also):
-        return [f"{where}: also must list the other lanes dedup merged in"]
+    if not isinstance(also, list) or any(a not in reported or a == f.get("lane") for a in also):
+        return [f"{where}: also must list the other reported lanes dedup merged in"]
     return []
 
 
-def _check_applied(applied: Any) -> List[str]:
+def _check_applied(applied: Any, reported: List[str]) -> List[str]:
     if not isinstance(applied, list):
         return ["applied must be a list"]
     errors: List[str] = []
@@ -230,7 +228,7 @@ def _check_applied(applied: Any) -> List[str]:
             continue
         if f.get("action") == "hold":
             errors.append(f"{where}: a hold belongs in held")
-        errors += _check_also(f, where)
+        errors += _check_also(f, where, reported)
         if f.get("status") not in APPLY_STATUSES:
             errors.append(f"{where}: status {f.get('status')!r} not in {APPLY_STATUSES}")
         if not _one_line(f.get("outcome")):
@@ -240,7 +238,7 @@ def _check_applied(applied: Any) -> List[str]:
     return errors
 
 
-def _check_held(held: Any, claim_numbers: List[Any]) -> List[str]:
+def _check_held(held: Any, claim_numbers: List[Any], reported: List[str]) -> List[str]:
     if not isinstance(held, list):
         return ["held must be a list"]
     errors: List[str] = []
@@ -251,7 +249,7 @@ def _check_held(held: Any, claim_numbers: List[Any]) -> List[str]:
             continue
         if f.get("action") != "hold":
             errors.append(f"{where}: action must be hold")
-        errors += _check_also(f, where)
+        errors += _check_also(f, where, reported)
         if "claim" not in f:
             errors.append(f"{where}: missing claim")
         elif f["claim"] is not None and f["claim"] not in claim_numbers:
@@ -350,12 +348,14 @@ def validate(report: Any) -> List[str]:
         errors.append("branch must be one line")
     claims = report["claims"]
     claim_numbers = [c.get("n") for c in claims if isinstance(c, dict)] if isinstance(claims, list) else []
+    lanes = report["lanes"]
+    reported = [k for k in LANES if isinstance(lanes, dict) and lanes.get(k) == "reported"]
     errors += _check_intent(report["intent"])
     errors += _check_claims(claims)
     errors += _check_scope(report["scope"])
     errors += _check_lanes(report["lanes"], report["single_pass"])
-    errors += _check_applied(report["applied"])
-    errors += _check_held(report["held"], claim_numbers)
+    errors += _check_applied(report["applied"], reported)
+    errors += _check_held(report["held"], claim_numbers, reported)
     errors += _check_out_of_intent(report["out_of_intent_files"], report["lanes"])
     errors += _check_concepts(report)
     errors += _check_checks(report["checks"])
@@ -378,13 +378,15 @@ def out_of_intent_files(trace: List[Dict[str, Any]]) -> List[str]:
 def _same(a: Dict[str, Any], b: Dict[str, Any]) -> bool:
     if a["hold"] == UNMET or b["hold"] == UNMET:
         return a["hold"] == b["hold"] == UNMET and a.get("claim") == b.get("claim")
-    return (a["file"], a["line"]) == (b["file"], b["line"]) or (a["target"] is not None and a["target"] == b["target"])
+    same_target = a["lane"] != b["lane"] and a["target"] is not None and a["target"] == b["target"]
+    return (a["file"], a["line"]) == (b["file"], b["line"]) or same_target
 
 
 def dedup(findings: List[Dict[str, Any]]) -> List[Dict[str, Any]]:
-    """Findings on the same file + line, the same target, or the same unmet claim are one
-    finding: the highest-precedence action survives, in reply order, and records the
-    other lanes in `also`."""
+    """Findings on the same file + line, the same target from two lanes, or the same unmet
+    claim are one finding: the highest-precedence action survives, in reply order, and
+    records the other lanes in `also`. One lane's findings on one target at two loci are
+    two edits."""
     ranked = sorted(enumerate(findings), key=lambda p: (PRECEDENCE.index(p[1]["action"]), p[0]))
     kept: List[Tuple[int, Dict[str, Any]]] = []
     for i, f in ranked:

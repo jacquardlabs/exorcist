@@ -50,7 +50,7 @@ mismatch between it and the script is a bug in the script.
       "title": "give-up test for sendWebhook",
       "evidence": "claim 3 names the give-up path; revert would remove its only test",
       "action": "hold", "target": null, "concepts": [], "hold": "implied by intent",
-      "claim": 3, "next": "nothing; kept because claim 3 entails it", "also": ["deletion"]
+      "claim": 3, "next": "nothing; kept because claim 3 entails it", "also": []
     },
     {
       "lane": "trace", "file": null, "line": null, "end_line": null,
@@ -99,14 +99,14 @@ are not stored; they derive from `applied` and `held`.
   report.
 - `lanes` — `trace`, `abstraction`, `threshold`, `deletion`, each `reported` or `did
   not report`. A lane did not report when its reply failed `report.py findings`.
-- `single_pass` — true when §3 ran without the Agent tool. Every lane is then
-  `reported`, and the evidence is one reader's.
+- `single_pass` — true when §3 ran without the Agent tool: the evidence is one
+  reader's. A lane can still be `did not report` when its array failed validation.
 - `concepts_removed` — the `concepts` of every `applied` entry with status `applied`,
   each once. The validator checks set equality.
 - `concepts_kept` — new exported symbols that survived (`tripwires.new_exports` minus
   `concepts_removed`), each with `callers`, the count from a grep that was run.
 - `applied` — every non-hold finding after §4, in `reference/findings.md` shape, plus
-  `also` (the other lanes the dedup merged into it), `status` (`applied` or
+  `also` (the other `reported` lanes the dedup merged into it), `status` (`applied` or
   `skipped`), and `outcome` (one line: what was done, or `skipped: <why>`).
 - `held` — every hold after §4, in `reference/findings.md` shape with `claim` and
   `next` present, plus `also`. `claim` is the `n` of the claim the hold answers to,
@@ -117,10 +117,12 @@ are not stored; they derive from `applied` and `held`.
   `hold` and `evidence` say why (a `behavior change` names the pinning test, a `spec
   conflict` the doc and line), `claim` resolves through `claims` to what it relates
   to, and `next` is the decision. Nothing downstream re-raises a hold.
-- `out_of_intent_files` — the files that carry a hunk no claim reaches: the sorted,
-  unique `file` of every trace finding with `action: revert` or `hold: trust
-  boundary`, before §4's dedup and before §5's apply. `implied by intent` is in intent
-  and `unmet claim` has no file, so neither counts. A consumer ranks by its length;
+- `out_of_intent_files` — the files that carry a hunk no claim reaches and nothing
+  argues for: the sorted, unique `file` of every trace finding with `action: revert`
+  or `hold: trust boundary`, before §4's dedup and before §5's apply. `implied by
+  intent` is in intent and `unmet claim` has no file, so neither counts. `spec
+  conflict` does not count: its hunk is either one a doc argues for or one a claim
+  reaches, and the hold does not say which; the human settles it. A consumer ranks by its length;
   the list keeps the number auditable. `report.py merge` writes it; the command never
   does. Null exactly when `lanes.trace` did not report.
 

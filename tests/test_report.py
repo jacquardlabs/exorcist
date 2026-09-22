@@ -70,7 +70,7 @@ def _report():
                 "also": [], "status": "skipped", "outcome": "skipped: a snapshot pins the new formatting",
             },
         ],
-        "held": [{**_hold(), "also": ["deletion"]}],
+        "held": [{**_hold(), "also": ["abstraction"]}],
         "out_of_intent_files": ["src/util/format.ts"],
         "checks": [
             {"name": "npm test -- tests/test_sender.py", "outcome": "pass", "detail": None},
@@ -134,9 +134,10 @@ def test_bad_enums_fail():
         assert any(needle in e for e in errors), (needle, errors)
 
 
-def test_lanes_need_exactly_the_four_and_single_pass_reports_all():
+def test_lanes_need_exactly_the_four_and_single_pass_may_miss_one():
     assert _errors_with(lambda r: r["lanes"].pop("deletion"))
-    assert any("single_pass" in e for e in _errors_with(lambda r: r.update(single_pass=True)))
+    assert _errors_with(lambda r: r.update(single_pass=True)) == []  # deletion did not report
+    assert any("single_pass" in e for e in _errors_with(lambda r: r.update(single_pass="yes")))
 
 
 def test_concepts_removed_matches_applied():
@@ -157,6 +158,7 @@ def test_held_carries_claim_and_next():
 
 def test_also_and_skip_outcome_and_checks_detail():
     assert _errors_with(lambda r: r["held"][0].update(also=["trace"]))  # its own lane
+    assert any("reported lanes" in e for e in _errors_with(lambda r: r["held"][0].update(also=["deletion"])))  # did not report
     assert _errors_with(lambda r: r["applied"][1].update(outcome="left it"))
     assert _errors_with(lambda r: r["checks"][0].update(detail="noise"))
     assert _errors_with(lambda r: r["checks"][1].update(detail=None))
@@ -254,7 +256,10 @@ def test_merge_counts_before_dedup_and_skips_other_lanes():
             trace=[_revert(**shared), _unmet()],
             abstraction=[_hold(lane="abstraction", **shared, hold="behavior change", claim=None, next="decide")],
             threshold=[_finding(lane="threshold", file="src/only-threshold.ts", action="delete", target=None)],
-            deletion=[],
+            deletion=[
+                _revert(lane="deletion", file="src/d.ts"),
+                _hold(lane="deletion", file="src/e.ts", hold="trust boundary", claim=None),
+            ],
         )
         draft, errors = report.merge(paths, {}, {}, False)
     assert errors == {}, errors
@@ -262,8 +267,8 @@ def test_merge_counts_before_dedup_and_skips_other_lanes():
     assert draft["out_of_intent_files"] == ["src/a.ts"]  # the hold absorbed the revert; the file still counts
     survivor = next(f for f in draft["held"] if f["file"] == "src/a.ts")
     assert survivor["lane"] == "abstraction" and survivor["also"] == ["trace"], survivor
-    assert [f["hold"] for f in draft["held"]] == ["unmet claim", "behavior change"]  # lane order, then reply order
-    assert [f["file"] for f in draft["applied"]] == ["src/only-threshold.ts"]
+    assert [f["hold"] for f in draft["held"]] == ["unmet claim", "behavior change", "trust boundary"]  # lane, then reply order
+    assert [f["file"] for f in draft["applied"]] == ["src/only-threshold.ts", "src/d.ts"]
     assert draft["applied"][0]["status"] is None
 
 
@@ -272,6 +277,28 @@ def test_merge_dedups_unmet_claims_by_number():
         paths = _lanes(tmp, trace=[_unmet(), _unmet(title="second reading"), _unmet(claim=2)])
         draft, _ = report.merge(paths, {}, {}, False)
     assert [f["claim"] for f in draft["held"]] == [1, 2]
+
+
+def test_dedup_same_target_across_lanes_only():
+    inline = _finding()
+    move = _finding(lane="threshold", file="src/other.ts", line=10, end_line=12, action="move")
+    merged = report.dedup([move, inline])
+    assert len(merged) == 1 and merged[0]["action"] == "inline" and merged[0]["also"] == ["threshold"], merged
+    one_lane = [
+        _finding(lane="threshold", file="src/a.ts", line=12, end_line=12, action="move", target="src/api/entry.ts:8"),
+        _finding(lane="threshold", file="src/b.ts", line=40, end_line=40, action="move", target="src/api/entry.ts:8"),
+    ]
+    assert [f["file"] for f in report.dedup(one_lane)] == ["src/a.ts", "src/b.ts"]  # two edits, one entry point
+
+
+def test_dedup_precedence_on_the_same_lines():
+    def at(action, lane):
+        extra = {"hold": "public API", "claim": None, "next": "decide", "concepts": []} if action == "hold" else {}
+        return _finding(lane=lane, action=action, target=None if action in report.TARGETLESS else f"src/{action}.ts:1", **extra)
+
+    for high, low in zip(report.PRECEDENCE, report.PRECEDENCE[1:]):
+        merged = report.dedup([at(low, "threshold"), at(high, "deletion")])
+        assert [(f["action"], f["also"]) for f in merged] == [(high, ["threshold"])], (high, low, merged)
 
 
 def test_merge_invalid_or_missing_trace_is_null():
