@@ -71,6 +71,7 @@ def _report():
             },
         ],
         "held": [{**_hold(), "also": ["deletion"]}],
+        "out_of_intent_files": ["src/util/format.ts"],
         "checks": [
             {"name": "npm test -- tests/test_sender.py", "outcome": "pass", "detail": None},
             {"name": "npx tsc --noEmit", "outcome": "fail", "detail": "src/x.ts(3,1): error TS2304"},
@@ -180,6 +181,130 @@ def test_intent_pr_pairing():
     assert report.validate({**_report(), "intent": {"source": "pr", "pr": 12}}) == []
 
 
+def test_out_of_intent_files_pairs_with_the_trace_lane():
+    assert _errors_with(lambda r: r.update(out_of_intent_files=[])) == []
+    silent = {"trace": "did not report", "abstraction": "reported", "threshold": "reported", "deletion": "reported"}
+    assert any("must be null" in e for e in _errors_with(lambda r: r.update(lanes=silent)))
+    assert _errors_with(lambda r: r.update(lanes=silent, out_of_intent_files=None)) == []
+    assert any("sorted list" in e for e in _errors_with(lambda r: r.update(out_of_intent_files=None)))
+    assert _errors_with(lambda r: r.update(out_of_intent_files=["b.ts", "a.ts"]))
+    assert _errors_with(lambda r: r.update(out_of_intent_files=["a.ts", "a.ts"]))
+    assert _errors_with(lambda r: r.update(out_of_intent_files=3))
+
+
+def _unmet(**over):
+    over = {
+        "file": None, "line": None, "end_line": None, "title": "give-up path never records the failure",
+        "evidence": "claim 1 → grep -n 'status.*failed' src/webhook/ → 0 hits", "hold": "unmet claim",
+        "claim": 1, "next": "implement the failed-status write, or drop claim 1", **over,
+    }
+    return _hold(**over)
+
+
+def test_unmet_claim_has_a_null_locus_and_a_claim():
+    assert report.validate_findings([_unmet()]) == []
+    assert report.validate_findings([_unmet(file="src/x.ts")])
+    assert report.validate_findings([_unmet(line=3, end_line=3)])
+    assert any("claim is required for unmet claim" in e for e in report.validate_findings([_unmet(claim=None)]))
+    assert report.validate_findings([_unmet(concepts=["x"])])
+    assert report.validate_findings([_finding(file=None, line=None, end_line=None)])  # only unmet claim may
+    assert report.validate_findings([_hold(file=None, line=None, end_line=None)])
+    held = {**_unmet(), "also": []}
+    assert _errors_with(lambda r: r["held"].append(held)) == []
+    assert any("claim 2" in e for e in _errors_with(lambda r: r["held"].append({**held, "claim": 2})))
+
+
+# --- merge -------------------------------------------------------------------------
+
+
+def _revert(**over):
+    over = {"lane": "trace", "title": "unrequested hunk", "evidence": "claims 1-3: none reaches it",
+            "action": "revert", "target": None, "concepts": [], **over}
+    return _finding(**over)
+
+
+def test_out_of_intent_files_derivation():
+    assert report.out_of_intent_files([]) == []
+    trace = [
+        _revert(file="b.ts", line=1, end_line=2),
+        _revert(file="b.ts", line=9, end_line=9),  # one file, counted once
+        _revert(file="a.ts", line=4, end_line=4),
+        _hold(file="c.ts", hold="trust boundary", claim=None),
+        _hold(file="d.ts"),  # implied by intent: the ward judged it in intent
+        _unmet(),  # no file
+        _hold(file="e.ts", hold="spec conflict", claim=None),
+    ]
+    assert report.out_of_intent_files(trace) == ["a.ts", "b.ts", "c.ts"]
+
+
+def _lanes(tmp, **replies):
+    paths = []
+    for lane, reply in replies.items():
+        path = Path(tmp) / f"{lane}.json"
+        path.write_text(reply if isinstance(reply, str) else json.dumps(reply))
+        paths.append(path)
+    return paths
+
+
+def test_merge_counts_before_dedup_and_skips_other_lanes():
+    with tempfile.TemporaryDirectory() as tmp:
+        shared = {"file": "src/a.ts", "line": 5, "end_line": 9}
+        paths = _lanes(
+            tmp,
+            trace=[_revert(**shared), _unmet()],
+            abstraction=[_hold(lane="abstraction", **shared, hold="behavior change", claim=None, next="decide")],
+            threshold=[_finding(lane="threshold", file="src/only-threshold.ts", action="delete", target=None)],
+            deletion=[],
+        )
+        draft, errors = report.merge(paths, {}, {}, False)
+    assert errors == {}, errors
+    assert draft["lanes"] == dict.fromkeys(report.LANES, "reported")
+    assert draft["out_of_intent_files"] == ["src/a.ts"]  # the hold absorbed the revert; the file still counts
+    survivor = next(f for f in draft["held"] if f["file"] == "src/a.ts")
+    assert survivor["lane"] == "abstraction" and survivor["also"] == ["trace"], survivor
+    assert [f["hold"] for f in draft["held"]] == ["unmet claim", "behavior change"]  # lane order, then reply order
+    assert [f["file"] for f in draft["applied"]] == ["src/only-threshold.ts"]
+    assert draft["applied"][0]["status"] is None
+
+
+def test_merge_dedups_unmet_claims_by_number():
+    with tempfile.TemporaryDirectory() as tmp:
+        paths = _lanes(tmp, trace=[_unmet(), _unmet(title="second reading"), _unmet(claim=2)])
+        draft, _ = report.merge(paths, {}, {}, False)
+    assert [f["claim"] for f in draft["held"]] == [1, 2]
+
+
+def test_merge_invalid_or_missing_trace_is_null():
+    with tempfile.TemporaryDirectory() as tmp:
+        paths = _lanes(tmp, trace=[_revert(file=None)], abstraction="Here are my findings: []")
+        draft, errors = report.merge(paths, {}, {}, False)
+        assert draft["lanes"]["trace"] == draft["lanes"]["abstraction"] == draft["lanes"]["deletion"] == "did not report"
+        assert draft["out_of_intent_files"] is None
+        assert sorted(errors) == ["abstraction", "trace"], errors
+        paths = _lanes(tmp, trace=[_revert(lane="deletion", file="x.ts")])  # a reply in the wrong lane
+        draft, errors = report.merge(paths, {}, {}, False)
+        assert draft["lanes"]["trace"] == "did not report" and "trace" in errors
+
+
+def test_merge_draft_validates_once_the_command_fills_it():
+    base = _report()
+    with tempfile.TemporaryDirectory() as tmp:
+        paths = _lanes(
+            tmp,
+            trace=[_revert(file="src/util/format.ts", line=3, end_line=40)],
+            abstraction=[_finding()], threshold=[], deletion=[],
+        )
+        draft, _ = report.merge(paths, base["tripwires"], base["scope"], False)
+    missing = report.validate(draft)
+    assert any("claims" in e for e in missing) and any("concepts_removed" in e for e in missing), missing
+    draft.update({k: base[k] for k in ("branch", "intent", "claims", "concepts_kept", "checks", "justifications")})
+    draft["concepts_removed"] = ["RetryPolicy"]
+    for f, (status, outcome) in zip(draft["applied"], [("skipped", "skipped: pinned"), ("applied", "inlined")]):
+        f.update(status=status, outcome=outcome)
+    assert report.validate(draft) == [], report.validate(draft)
+    assert draft["out_of_intent_files"] == ["src/util/format.ts"]
+
+
 # --- lane findings -------------------------------------------------------------
 
 
@@ -265,6 +390,24 @@ def test_cli_validate_exit_codes():
         assert subprocess.run([*run, "findings", str(lane)], capture_output=True, check=False).returncode == 0
         lane.write_text("I found nothing.")
         assert subprocess.run([*run, "findings", str(lane)], capture_output=True, check=False).returncode == 1
+
+
+def test_cli_merge_writes_the_draft():
+    with tempfile.TemporaryDirectory() as tmp:
+        paths = _lanes(tmp, trace="```json\n" + json.dumps([_revert(file="x.ts")]) + "\n```", deletion="prose")
+        tw, scope, out = Path(tmp) / "tw.json", Path(tmp) / "scope.json", Path(tmp) / "draft.json"
+        tw.write_text(json.dumps(_report()["tripwires"]))
+        scope.write_text(json.dumps(_report()["scope"]))
+        done = subprocess.run(
+            [sys.executable, str(REPO / "scripts" / "report.py"), "merge", str(out), *map(str, paths),
+             "--tripwires", str(tw), "--scope", str(scope)],
+            capture_output=True, text=True, check=False,
+        )
+        assert done.returncode == 0, done
+        assert "deletion: did not report" in done.stdout and "out of intent: 1 file(s)" in done.stdout, done.stdout
+        draft = json.loads(out.read_text())
+    assert draft["tripwires"] == _report()["tripwires"] and draft["single_pass"] is False
+    assert sorted(draft) == sorted(report.REPORT_REQUIRED)
 
 
 # --- base resolution --------------------------------------------------------------

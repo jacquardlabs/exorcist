@@ -1,9 +1,9 @@
 # Findings contract — changeset lanes
 
-Every `/exorcist:exorcise` lane returns one JSON array and nothing else. The command
-dedups across lanes by `file` + `line`, then by `target`, and applies in this order of
-precedence when two findings claim the same lines: `hold` > `revert` > `delete` >
-`inline` > `reuse` > `move`.
+Every `/exorcist:exorcise` lane returns one JSON array and nothing else.
+`scripts/report.py merge` dedups across lanes by `file` + `line`, then by `target`,
+and unmet claims by `claim`, keeping this order of precedence when two findings claim
+the same lines: `hold` > `revert` > `delete` > `inline` > `reuse` > `move`.
 
 ```json
 [
@@ -41,8 +41,16 @@ is a ghost scoped to one diff.
   for `hold`.
 - `hold` — set only on `hold`, one of the values `reference/ghost.md` lists.
 - `claim` — the number of the claim the finding answers to, or `null`. Required on
-  `hold: "implied by intent"`.
+  `hold: "implied by intent"` and `hold: "unmet claim"`.
 - `next` — set on every `hold`: one line, what the human or a register run would do.
+  Nothing downstream re-raises a hold, so `title`, `evidence`, `claim`, and `next`
+  together must read standalone in a PR body: `evidence` names the pinning test for
+  `behavior change` and the doc and line for `spec conflict`.
+
+`file`, `line`, and `end_line` are required on every finding but one: `hold: "unmet
+claim"`, a claim no hunk satisfies, has all three `null` — there is no hunk to point
+at — and names the claim in `claim` and the search that came up empty in
+`evidence`.
 
 `scripts/report.py findings <reply>` validates a reply against this contract. A reply
 with any invalid finding is a lane that did not report.

@@ -1,9 +1,10 @@
 #!/usr/bin/env python3
-"""Resolve the diff base, validate lane findings, and validate the exorcise report
-(reference/report.md).
+"""Resolve the diff base, validate lane findings, merge them into a report draft, and
+validate the exorcise report (reference/report.md).
 
     python3 report.py resolve-base [--base REF] [--pr-base SHA]   # JSON to stdout
     python3 report.py findings <lane.json>
+    python3 report.py merge <draft.json> <lane.json>... --tripwires T --scope S [--single-pass]
     python3 report.py validate <report.json>
 
 Exit 0 valid or resolved, 1 invalid, 2 base resolution failed. Standard library
@@ -12,19 +13,27 @@ only, 3.9-compatible.
 from __future__ import annotations
 
 import argparse
+import datetime as _dt
 import json
 import re
 import subprocess
 import sys
 from pathlib import Path
-from typing import Any, Dict, List, Optional
+from typing import Any, Dict, List, Optional, Tuple
 
 CONTRACT_VERSION = 1
 LANES = ("trace", "abstraction", "threshold", "deletion")
 ACTIONS = ("revert", "inline", "reuse", "move", "delete", "hold")
 TARGETLESS = ("revert", "delete", "hold")
 # reference/ghost.md governs; tests/test_report.py fails when this drifts from it.
-HOLDS = ("public API", "trust boundary", "behavior change", "spec conflict", "implied by intent")
+HOLDS = ("public API", "trust boundary", "behavior change", "spec conflict", "implied by intent", "unmet claim")
+# A hold that names a claim no hunk reaches: nothing in the diff to point at.
+UNMET = "unmet claim"
+CLAIMED = ("implied by intent", UNMET)
+# reference/findings.md, highest first: the survivor when two findings claim the same lines.
+PRECEDENCE = ("hold", "revert", "delete", "inline", "reuse", "move")
+# out_of_intent_files counts a file that carries a trace verdict nothing in the intent reaches.
+OUT_OF_INTENT_HOLDS = ("trust boundary",)
 BLAST_RADIUS = re.compile(r"^blast radius: \d+ consumers outside the diff$")
 FINDING_REQUIRED = ("lane", "file", "line", "end_line", "title", "evidence", "action", "target", "concepts", "hold")
 LANE_STATUSES = ("reported", "did not report")
@@ -34,8 +43,8 @@ INTENT_SOURCES = ("text", "pr", "branch")
 CHECK_OUTCOMES = ("pass", "fail")
 REPORT_REQUIRED = (
     "contract_version", "generated", "branch", "intent", "claims", "scope", "lanes",
-    "single_pass", "concepts_removed", "concepts_kept", "applied", "held", "checks",
-    "tripwires", "justifications",
+    "single_pass", "concepts_removed", "concepts_kept", "applied", "held", "out_of_intent_files",
+    "checks", "tripwires", "justifications",
 )
 SCOPE_REQUIRED = ("base_ref", "base_sha", "head_sha", "source", "includes_worktree", "hunks")
 TRIPWIRES_REQUIRED = ("added", "removed", "changed", "loc_limit", "files", "new_exports", "new_deps", "warnings")
@@ -70,6 +79,16 @@ def _hold_value(value: Any) -> bool:
 # --- findings (reference/findings.md) ----------------------------------------
 
 
+def _check_locus(f: Dict[str, Any], where: str) -> List[str]:
+    if not isinstance(f["file"], str) or not f["file"]:
+        return [f"{where}: file must be a path"]
+    if not _is_int(f["line"]) or f["line"] < 1:
+        return [f"{where}: line must be a positive integer"]
+    if not _is_int(f["end_line"]) or f["end_line"] < f["line"]:
+        return [f"{where}: end_line must be an integer >= line"]
+    return []
+
+
 def validate_finding(f: Any, where: str) -> List[str]:
     if not isinstance(f, dict):
         return [f"{where}: not an object"]
@@ -78,12 +97,11 @@ def validate_finding(f: Any, where: str) -> List[str]:
         return errors
     if f["lane"] not in LANES:
         errors.append(f"{where}: lane {f['lane']!r} not in {LANES}")
-    if not isinstance(f["file"], str) or not f["file"]:
-        errors.append(f"{where}: file must be a path")
-    if not _is_int(f["line"]) or f["line"] < 1:
-        errors.append(f"{where}: line must be a positive integer")
-    elif not _is_int(f["end_line"]) or f["end_line"] < f["line"]:
-        errors.append(f"{where}: end_line must be an integer >= line")
+    unmet = f["action"] == "hold" and f["hold"] == UNMET
+    if unmet and any(f[k] is not None for k in ("file", "line", "end_line")):
+        errors.append(f"{where}: file, line, end_line must be null for unmet claim")
+    if not unmet:
+        errors += _check_locus(f, where)
     errors += [f"{where}: {k} must be one non-empty line" for k in ("title", "evidence") if not _one_line(f[k])]
     action = f["action"]
     if action not in ACTIONS:
@@ -105,8 +123,8 @@ def validate_finding(f: Any, where: str) -> List[str]:
         claim = f.get("claim")
         if claim is not None and not _is_int(claim):
             errors.append(f"{where}: claim must be an integer or null")
-        if f["hold"] == "implied by intent" and claim is None:
-            errors.append(f"{where}: claim is required for implied by intent")
+        if f["hold"] in CLAIMED and claim is None:
+            errors.append(f"{where}: claim is required for {f['hold']}")
     elif f["hold"] is not None:
         errors.append(f"{where}: hold must be null unless action is hold")
     return errors
@@ -311,6 +329,14 @@ def _check_tripwires(tripwires: Any, justifications: Any) -> List[str]:
     return errors
 
 
+def _check_out_of_intent(files: Any, lanes: Any) -> List[str]:
+    if not isinstance(lanes, dict) or lanes.get("trace") != "reported":
+        return [] if files is None else ["out_of_intent_files must be null when the trace lane did not report"]
+    if not _str_list(files) or files != sorted(set(files)):
+        return ["out_of_intent_files must be a sorted list of unique paths when the trace lane reported"]
+    return []
+
+
 def validate(report: Any) -> List[str]:
     if not isinstance(report, dict):
         return ["report must be a JSON object"]
@@ -330,10 +356,96 @@ def validate(report: Any) -> List[str]:
     errors += _check_lanes(report["lanes"], report["single_pass"])
     errors += _check_applied(report["applied"])
     errors += _check_held(report["held"], claim_numbers)
+    errors += _check_out_of_intent(report["out_of_intent_files"], report["lanes"])
     errors += _check_concepts(report)
     errors += _check_checks(report["checks"])
     errors += _check_tripwires(report["tripwires"], report["justifications"])
     return errors
+
+
+# --- merge (commands/exorcise.md §3-§4) ---------------------------------------
+
+
+def out_of_intent_files(trace: List[Dict[str, Any]]) -> List[str]:
+    """Files carrying a trace revert or trust-boundary hold, from the raw reply: before
+    dedup (a hold elsewhere can absorb the revert) and before apply (apply erases it)."""
+    return sorted({
+        f["file"] for f in trace
+        if f["action"] == "revert" or (f["action"] == "hold" and f["hold"] in OUT_OF_INTENT_HOLDS)
+    })
+
+
+def _same(a: Dict[str, Any], b: Dict[str, Any]) -> bool:
+    if a["hold"] == UNMET or b["hold"] == UNMET:
+        return a["hold"] == b["hold"] == UNMET and a.get("claim") == b.get("claim")
+    return (a["file"], a["line"]) == (b["file"], b["line"]) or (a["target"] is not None and a["target"] == b["target"])
+
+
+def dedup(findings: List[Dict[str, Any]]) -> List[Dict[str, Any]]:
+    """Findings on the same file + line, the same target, or the same unmet claim are one
+    finding: the highest-precedence action survives, in reply order, and records the
+    other lanes in `also`."""
+    ranked = sorted(enumerate(findings), key=lambda p: (PRECEDENCE.index(p[1]["action"]), p[0]))
+    kept: List[Tuple[int, Dict[str, Any]]] = []
+    for i, f in ranked:
+        winner = next((w for _, w in kept if _same(w, f)), None)
+        if winner is None:
+            kept.append((i, {**f, "also": []}))
+        elif f["lane"] != winner["lane"] and f["lane"] not in winner["also"]:
+            winner["also"].append(f["lane"])
+    return [f for _, f in sorted(kept, key=lambda p: p[0])]
+
+
+def _read_lane(path: Path) -> Tuple[List[str], Optional[List[Dict[str, Any]]]]:
+    """A lane's findings, or the errors that make it a lane that did not report."""
+    try:
+        data = parse_reply(path.read_text(encoding="utf-8"))
+    except (OSError, json.JSONDecodeError) as exc:
+        return [f"does not parse: {exc}"], None
+    errors = validate_findings(data)
+    if not errors:
+        errors = [f"[{i}]: lane {f['lane']!r} in the {path.stem} reply" for i, f in enumerate(data) if f["lane"] != path.stem]
+    return errors, None if errors else data
+
+
+def merge(
+    lane_files: List[Path], tripwires: Dict[str, Any], scope: Dict[str, Any], single_pass: bool
+) -> Tuple[Dict[str, Any], Dict[str, List[str]]]:
+    """The report draft: lanes, deduped findings, out_of_intent_files, tripwires. Keys
+    that need judgment are left null for the command; `validate` names any it misses."""
+    lanes = dict.fromkeys(LANES, "did not report")
+    found: Dict[str, List[Dict[str, Any]]] = {}
+    errors: Dict[str, List[str]] = {}
+    for path in lane_files:
+        if path.stem not in LANES:
+            errors[path.stem] = [f"{path.name} is not a lane: name it {'|'.join(LANES)}.json"]
+            continue
+        lane_errors, data = _read_lane(path)
+        if lane_errors:
+            errors[path.stem] = lane_errors
+            continue
+        lanes[path.stem] = "reported"
+        found[path.stem] = data
+    merged = dedup([f for lane in LANES for f in found.get(lane, [])])
+    draft = {
+        "contract_version": CONTRACT_VERSION,
+        "generated": _dt.datetime.now(_dt.timezone.utc).strftime("%Y-%m-%dT%H:%M:%SZ"),
+        "branch": None,
+        "intent": None,
+        "claims": None,
+        "scope": scope,
+        "lanes": lanes,
+        "single_pass": single_pass,
+        "concepts_removed": None,
+        "concepts_kept": None,
+        "applied": [{**f, "status": None, "outcome": None} for f in merged if f["action"] != "hold"],
+        "held": [{"claim": None, **f} for f in merged if f["action"] == "hold"],
+        "out_of_intent_files": out_of_intent_files(found["trace"]) if "trace" in found else None,
+        "checks": None,
+        "tripwires": tripwires,
+        "justifications": None,
+    }
+    return draft, errors
 
 
 # --- base (commands/exorcise.md §2) ------------------------------------------
@@ -393,6 +505,25 @@ def _print_errors(head: str, errors: List[str]) -> None:
         print(f"  - {e}")
 
 
+def _merge(args: argparse.Namespace) -> int:
+    try:
+        tripwires = json.loads(Path(args.tripwires).read_text(encoding="utf-8"))
+        scope = json.loads(Path(args.scope).read_text(encoding="utf-8"))
+    except (OSError, json.JSONDecodeError) as exc:
+        print(f"merge: {exc}")
+        return 1
+    draft, errors = merge([Path(p) for p in args.lanes], tripwires, scope, args.single_pass)
+    for lane, lane_errors in errors.items():
+        _print_errors(f"{lane}: did not report —", lane_errors)
+    Path(args.out).write_text(json.dumps(draft, indent=2, ensure_ascii=False) + "\n", encoding="utf-8")
+    files = draft["out_of_intent_files"]
+    print(
+        f"{len(draft['applied'])} to apply, {len(draft['held'])} held → {args.out}"
+        + f" · out of intent: {'n/a' if files is None else len(files)} file(s)"
+    )
+    return 0
+
+
 def main() -> int:
     parser = argparse.ArgumentParser(description=__doc__.split("\n")[0])
     sub = parser.add_subparsers(dest="cmd", required=True)
@@ -400,8 +531,17 @@ def main() -> int:
     r.add_argument("--base")
     r.add_argument("--pr-base")
     sub.add_parser("findings").add_argument("path")
+    m = sub.add_parser("merge")
+    m.add_argument("out")
+    m.add_argument("lanes", nargs="+")
+    m.add_argument("--tripwires", required=True)
+    m.add_argument("--scope", required=True)
+    m.add_argument("--single-pass", action="store_true")
     sub.add_parser("validate").add_argument("path")
     args = parser.parse_args()
+
+    if args.cmd == "merge":
+        return _merge(args)
 
     if args.cmd == "resolve-base":
         try:

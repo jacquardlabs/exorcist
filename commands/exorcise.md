@@ -81,7 +81,9 @@ Dispatch the four lanes **in parallel** via the Agent tool, one call each in a s
 message: `exorcist:intent-tracer`, `exorcist:abstraction-hunter`,
 `exorcist:threshold-salter`, `exorcist:deletion-scout`. Each gets the same context:
 
-- the numbered claims, verbatim;
+- the numbered claims and their obligations, verbatim, and the intent as gathered in
+  §1 — the tracer's reverse roll call checks each claim against the diff, and a claim
+  that quotes a design section against that section's words;
 - the path to `<tmp>/diff.patch` and to `<tmp>/tripwires.json`;
 - the repository root and `BASE`;
 - the resolved absolute path of `${CLAUDE_PLUGIN_ROOT}/reference/findings.md` and
@@ -89,27 +91,32 @@ message: `exorcist:intent-tracer`, `exorcist:abstraction-hunter`,
   else.
 
 Write each reply verbatim to `<tmp>/findings/<lane>.json`, named by the findings lane
-(`trace`, `abstraction`, `threshold`, `deletion`), and check it:
+(`trace`, `abstraction`, `threshold`, `deletion`). Write the resolve-base object plus
+`head_sha`, `includes_worktree`, and `hunks` to `<tmp>/scope.json`, then merge:
 
 ```bash
-python3 "${CLAUDE_PLUGIN_ROOT}/scripts/report.py" findings <tmp>/findings/<lane>.json
+python3 "${CLAUDE_PLUGIN_ROOT}/scripts/report.py" merge <tmp>/report.json <tmp>/findings/*.json \
+  --tripwires <tmp>/tripwires.json --scope <tmp>/scope.json [--single-pass]
 ```
 
-It strips exactly one code fence wrapped around the whole reply — that is transport,
-not content — and validates every finding against the contract. Exit 1 is a lane that
-did not report: print its errors, say which lane in the report, do not repair or
-re-ask.
+It strips exactly one code fence wrapped around each reply — that is transport, not
+content — and validates every finding against the contract. A lane with any invalid
+finding did not report: merge prints its errors; say which lane in the report, do not
+repair or re-ask. It writes the draft report — lanes, deduped findings, and
+`out_of_intent_files` — whether or not `--json` was given; §4 to §7 work from it.
 
-Without the Agent tool: run the four lanes yourself in one pass, same contract, and say
-in the report that it was a single pass.
+Without the Agent tool: run the four lanes yourself in one pass, same contract, write
+the four arrays the same way, pass `--single-pass`, and say in the report that it was
+a single pass.
 
 ## 4. Decide
 
-Merge the arrays. Dedup findings that share `file` + `line` or the same `target`,
-keeping the highest-precedence action: `hold` > `revert` > `delete` > `inline` >
-`reuse` > `move`. Record the losing finding's lane in the survivor's `also`.
+Merge has already deduped: findings that share `file` + `line`, the same `target`, or
+the same unmet claim keep the highest-precedence action (`hold` > `revert` > `delete`
+> `inline` > `reuse` > `move`), and the losing lane is in the survivor's `also`. The
+draft's `applied` holds every finding to act on, `held` every hold.
 
-Then, before touching anything, apply the ward's two guards to every finding:
+Before touching anything, apply the ward's two guards to every finding in `applied`:
 
 - **Never a trust-boundary check.** If a `revert`, `delete`, or `move` would remove
   the first validation an external value meets, authorization, or a data-loss guard,
@@ -118,7 +125,8 @@ Then, before touching anything, apply the ward's two guards to every finding:
   the claims implies, it becomes `hold`, `hold: "implied by intent"`, with that claim's
   number in `claim`.
 
-A finding converted to `hold` gets `target: null`, `concepts: []`, and a `next` line.
+A finding converted to `hold` moves to `held` with `target: null`, `concepts: []`,
+`claim` (the claim it answers to, or null), and a `next` line.
 
 A `move` whose entry point lies outside the files the diff touches stays `hold` with
 the consumer count; a register run or the human works it.
@@ -166,7 +174,8 @@ Traced <n> · Reverted <n> · Rewritten <n> · Deleted <n> · Held <n>
 - …
 
 ## Held
-- <file>:<lines>  <title> — <hold>. <what the human or register run would do>
+- <file>:<lines>  <title> — <hold>. <evidence> <what the human or register run would do>
+- claim <n>  <title> — unmet claim: "<claim text>". <evidence> <what the human would do>
 
 Concepts removed: <list> · Concepts kept: <new symbols that survived, each with its caller count>
 Tripwires: <the text line> — <one sentence per crossed wire>
@@ -176,14 +185,17 @@ Next: /simplify for cosmetic cleanup.
 
 Sections with nothing in them are omitted. A change with no findings gets the header,
 `Nothing to cast out — every hunk traced.`, the concepts line, and the tripwires line.
-The Held line's closing clause is the finding's `next`.
+The Held line's closing clause is the finding's `next`; a hold that answers to a claim
+also quotes it (`claim <n>: "<text>"`). An unmet claim has no `file:lines` and leads
+with its claim number. Each Held line reads without the rest of the report — nothing
+downstream re-raises a hold.
 
-With `--json`, print the text report unchanged, then write the same run as JSON per
-`${CLAUDE_PLUGIN_ROOT}/reference/report.md`: `scope` from resolve-base plus `head_sha`,
-`includes_worktree`, and `hunks`; `lanes` from §3's checks; `applied` for every
-non-hold finding with its `status` and `outcome`; `held` for every hold with `claim`
-and `next`; `checks` from §6; `tripwires` verbatim from `<tmp>/tripwires.json`, and one
-`justifications` entry per warning. Draft it to `<tmp>/report.json`, then:
+With `--json`, print the text report unchanged, then finish `<tmp>/report.json` per
+`${CLAUDE_PLUGIN_ROOT}/reference/report.md`. Merge wrote `scope`, `lanes`,
+`single_pass`, `tripwires`, and `out_of_intent_files`; never edit them. Fill `branch`,
+`intent`, `claims` from §1, each `applied` entry's `status` and `outcome` from §5,
+§4's guard conversions in `held`, `concepts_removed`, `concepts_kept` with their
+caller counts, `checks` from §6, and one `justifications` entry per warning. Then:
 
 ```bash
 python3 "${CLAUDE_PLUGIN_ROOT}/scripts/report.py" validate <tmp>/report.json
