@@ -170,3 +170,5 @@ the first run hid: neither re-run lane raised the Critical telemetry break
 Both lanes grepped the line and dismissed it without reading it. deletion-scout found 7
 findings against the first run's 11. One lane run cannot yet vouch for a finding that
 gauntlet would otherwise have re-raised; the next real build is the check.
+
+The #13 fix and its 3-run measurement: [lane-variance-2026-09-22.md](lane-variance-2026-09-22.md).
