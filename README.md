@@ -168,7 +168,7 @@ exactly how far it got.
 | Mount | Lanes | Model | Measured |
 |---|---|---|---|
 | exorcise (changeset) | 4 | opus | ~3 min on a 2-file, +140-line diff |
-| seance | 4 | opus | 12 min on 1,451 lines · ~75 min on 20,718 lines |
+| seance | 4 | opus | 10 min on 1,451 lines · ~75 min on 20,718 lines (prior Opus) |
 | exorcise (register) | — | inherits | ~2 min per ghost, dominated by the scoped checks |
 
 The séance lanes read the whole tree regardless of size; on a trunk it is worth
