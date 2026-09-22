@@ -2,7 +2,7 @@
 name: intent-tracer
 description: Traces every hunk of a diff to the stated intent. Returns a JSON array of findings — hunks nothing in the intent reaches, marked for revert or hold. Never edits.
 tools: Read, Grep, Glob, Bash
-model: sonnet
+model: opus
 effort: medium
 ---
 

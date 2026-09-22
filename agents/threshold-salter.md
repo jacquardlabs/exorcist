@@ -2,7 +2,7 @@
 name: threshold-salter
 description: Finds every null check, default, coercion, cast, and try/catch a diff adds at a point of use, traces the value to where it enters the system, and counts the consumers still reading it unfixed. Returns a JSON array of findings; never edits.
 tools: Read, Grep, Glob, Bash
-model: sonnet
+model: opus
 effort: medium
 ---
 

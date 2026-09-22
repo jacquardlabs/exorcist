@@ -2,7 +2,7 @@
 name: deletion-scout
 description: Asks what a diff lets the codebase delete — superseded paths, compatibility shims, flags now always on, tests for removed behavior — and flags additions abnormal for the file they sit in. Returns a JSON array of findings; never edits.
 tools: Read, Grep, Glob, Bash
-model: sonnet
+model: opus
 effort: medium
 ---
 
