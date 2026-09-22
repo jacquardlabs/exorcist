@@ -50,6 +50,8 @@ satisfies is the change that did not happen:
   in `evidence`: the claim's words and the diff's `path:line`.
 - A capability the claim calls for that the diff never reaches: the retry is there,
   the give-up is not.
+- A claim that one file matches another: a rule the other states that the first never
+  does — grep the first for the rule's key term; 0 hits is the unmet claim.
 
 A claim met in letter only — a test that asserts nothing, a flag parsed and ignored —
 is outside what one grep can show; report it only when the grep shows it.
@@ -59,9 +61,11 @@ is outside what one grep can show; report it only when the grep shows it.
 Two more holds, for what the human must settle rather than what you can trace:
 
 - `hold: "spec conflict"` — an unreached hunk that a context doc (`CLAUDE.md`,
-  `PRODUCT.md`, `DESIGN.md`, a design doc) argues for, or a claim that contradicts
-  one. `evidence` quotes the doc's `path:line`. For a contradicting claim, `file`,
-  `line`, `end_line` are the hunk that satisfies it and `claim` is its `n`; a claim no
+  `PRODUCT.md`, `DESIGN.md`, a design doc) argues for, a reached hunk whose added prose
+  states a fact about the repo that one contradicts, or a claim that contradicts one.
+  `evidence` quotes the doc's `path:line`. For a contradicting hunk, `file`, `line`,
+  `end_line` are that hunk; for a contradicting claim, the hunk that satisfies it, with
+  `claim` its `n`; a claim no
   hunk satisfies is an `unmet claim`, with the doc in its `evidence`.
 - `hold: "behavior change"` — a hunk a claim reaches that alters behavior a test
   outside the diff pins, and the diff does not update that test. `evidence` names the
@@ -84,8 +88,11 @@ The array in `reference/findings.md`, `lane: "trace"`. One finding per unreached
   empty, with its count.
 - `action: "hold"`, `hold: "spec conflict"` or `"behavior change"`, per Conflicts.
 
-`evidence` is the claim you tried to reach and why the line falls short, in one
-clause. `concepts` lists any symbol, file, or option the revert erases.
+`evidence` is one line. For a revert or a trust-boundary hold, it is the claim you
+tried to reach and why the line falls short, in one clause; every other hold carries
+what its rule above names — the claim it entails, the empty search with its count,
+the doc's or test's `path:line`. `concepts` lists any symbol, file, or option the
+revert erases.
 
 Every hold sets `next`: one line, what the human would do — "keep it and add a claim
 for it, or revert lines 18-22", "implement X in Y, or drop claim 2". Set `claim` to

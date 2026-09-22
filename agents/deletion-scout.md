@@ -21,8 +21,12 @@ For each thing the diff adds or replaces, grep for what it supersedes:
   condition; if every call site now passes the same value, the branch is dead.
 - A test that pins behavior the change removed, now asserting nothing.
 - A dependency the change stopped importing (`grep -rn "from <pkg>\|import <pkg>\|require(<pkg>"`).
+- A comment or doc line that states a rule about a value the diff adds or retires (a
+  tier, a flag value) which the diff's own sites now break — grep the file for each such
+  value; `evidence` quotes the line and the hunk it no longer matches.
 
-Each is `action: "delete"`, `evidence` the grep showing zero remaining uses.
+Each is `action: "delete"`, `evidence` the grep behind it — zero remaining uses, or the
+stale line and the hunk it no longer matches.
 `concepts` is what goes.
 
 ## 2. What did the diff add that the file would not?

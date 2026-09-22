@@ -119,15 +119,16 @@ def test_contract_version_is_an_exact_int():
 
 
 def test_bad_enums_fail():
+    # Each needle carries the bad value: only that value's enum check can produce it.
     cases = {
-        "scope.source": lambda r: r["scope"].update(source="upstreamish"),
-        "intent.source": lambda r: r["intent"].update(source="guess"),
-        "lanes.trace": lambda r: r["lanes"].update(trace="silent"),
-        "status": lambda r: r["applied"][0].update(status="done"),
-        "outcome": lambda r: r["checks"][0].update(outcome="ok"),
-        "action": lambda r: r["applied"][0].update(action="rewrite"),
-        "hold": lambda r: r["held"][0].update(hold="taste"),
-        "lane": lambda r: r["applied"][0].update(lane="deadcode"),
+        "scope.source 'upstreamish' not in": lambda r: r["scope"].update(source="upstreamish"),
+        "intent.source 'guess' not in": lambda r: r["intent"].update(source="guess"),
+        "lanes.trace 'silent' not in": lambda r: r["lanes"].update(trace="silent"),
+        "applied[0]: status 'done' not in": lambda r: r["applied"][0].update(status="done"),
+        "checks[0]: outcome 'ok' not in": lambda r: r["checks"][0].update(outcome="ok"),
+        "action 'rewrite' not in": lambda r: r["applied"][0].update(action="rewrite"),
+        "hold 'taste' is not a value": lambda r: r["held"][0].update(hold="taste"),
+        "lane 'deadcode' not in": lambda r: r["applied"][0].update(lane="deadcode"),
     }
     for needle, mutate in cases.items():
         errors = _errors_with(mutate)
@@ -144,6 +145,26 @@ def test_concepts_removed_matches_applied():
     assert _errors_with(lambda r: r.update(concepts_removed=["RetryPolicy", "formatDate"]))  # formatDate was skipped
     assert _errors_with(lambda r: r.update(concepts_removed=[]))
     assert _errors_with(lambda r: r["concepts_kept"][0].update(callers=-1))
+    dup = _errors_with(lambda r: r.update(concepts_removed=["RetryPolicy", "RetryPolicy"]))
+    assert "concepts_removed must be a list of unique strings" in dup, dup
+    assert "concepts_removed must be a list of unique strings" in _errors_with(lambda r: r.update(concepts_removed=[["x"]]))
+
+
+def test_claims_shape():
+    for bad in (None, [], {"n": 1}):
+        assert "claims must be a non-empty list" in _errors_with(lambda r, v=bad: r.update(claims=v)), bad
+    for bad in ({"n": True, "text": "t"}, {"n": "1", "text": "t"}, {"n": 2, "text": "two\nlines"}, {"n": 2}, "claim 2"):
+        errors = _errors_with(lambda r, v=bad: r["claims"].append(v))
+        assert "claims[2]: needs integer n and one-line text" in errors, (bad, errors)
+    assert "claims: duplicate n" in _errors_with(lambda r: r["claims"].append({"n": 1, "text": "again"}))
+
+
+def test_unhashable_values_are_errors_not_type_errors():
+    errors = _errors_with(lambda r: r["claims"].append({"n": [2], "text": "t"}))
+    assert "claims[2]: needs integer n and one-line text" in errors and "claims: duplicate n" not in errors, errors
+    for bad in ([["RetryPolicy"]], [{}]):
+        errors = _errors_with(lambda r, v=bad: r["applied"][0].update(concepts=v))
+        assert "applied[0]: concepts must be a list of strings" in errors, (bad, errors)
 
 
 def test_held_carries_claim_and_next():
@@ -172,6 +193,10 @@ def test_justifications_match_warnings_exactly():
 
 def test_scope_shas_and_hunks():
     assert _errors_with(lambda r: r["scope"].update(base_sha="6a528f8"))
+    sha256 = "a" * 64
+    assert _errors_with(lambda r: r["scope"].update(base_sha=sha256, head_sha=sha256)) == []
+    for bad in ("a" * 63, "a" * 41, "A" * 64, "a" * 104):
+        assert "scope.base_sha must be a 40- or 64-char sha" in _errors_with(lambda r, v=bad: r["scope"].update(base_sha=v)), bad
     assert _errors_with(lambda r: r["scope"].update(hunks=0))
     assert _errors_with(lambda r: r["scope"].update(includes_worktree="yes"))
     assert _errors_with(lambda r: r.update(generated="2026-09-22 18:04"))
@@ -313,6 +338,32 @@ def test_merge_invalid_or_missing_trace_is_null():
         assert draft["lanes"]["trace"] == "did not report" and "trace" in errors
 
 
+def test_merge_non_utf8_lane_did_not_report():
+    with tempfile.TemporaryDirectory() as tmp:
+        paths = _lanes(tmp, trace=[_revert(file="x.ts")], abstraction=[])
+        paths[0].write_bytes(b"[\xff\xfe]")
+        draft, errors = report.merge(paths, {}, {}, False)
+        assert draft["lanes"]["trace"] == "did not report" and draft["lanes"]["abstraction"] == "reported", draft["lanes"]
+        assert "does not parse" in errors["trace"][0], errors
+        run = [sys.executable, str(REPO / "scripts" / "report.py"), "findings", str(paths[0])]
+        done = subprocess.run(run, capture_output=True, text=True, check=False)
+        assert done.returncode == 1 and "does not parse" in done.stdout, done
+
+
+def test_merge_cli_non_utf8_tripwires_or_scope_exits_1():
+    with tempfile.TemporaryDirectory() as tmp:
+        paths = _lanes(tmp, trace=[], abstraction=[], threshold=[], deletion=[])
+        good, bad = Path(tmp) / "good.json", Path(tmp) / "bad.json"
+        good.write_text("{}")
+        bad.write_bytes(b"{\xff}")
+        out = Path(tmp) / "report.json"
+        for tw, sc in ((bad, good), (good, bad)):
+            run = [sys.executable, str(REPO / "scripts" / "report.py"), "merge", str(out), *map(str, paths),
+                   "--tripwires", str(tw), "--scope", str(sc)]
+            done = subprocess.run(run, capture_output=True, text=True, check=False)
+            assert done.returncode == 1 and done.stdout.startswith("merge:") and not out.exists(), done
+
+
 def test_merge_draft_validates_once_the_command_fills_it():
     base = _report()
     with tempfile.TemporaryDirectory() as tmp:
@@ -371,6 +422,7 @@ def test_blast_radius_hold_value():
 
 def test_parse_reply_strips_one_fence_only():
     assert report.parse_reply("```json\n[]\n```") == []
+    assert report.parse_reply("```json\r\n[\r\n]\r\n```\r\n") == []  # a CRLF reply
     for bad in ("Here: []", "```json\n```json\n[]\n```\n```"):
         try:
             report.parse_reply(bad)
@@ -386,6 +438,14 @@ def test_holds_match_ghost_md():
     fixed = tuple(v for v in values if not v.startswith("blast radius"))
     assert fixed == report.HOLDS, (fixed, report.HOLDS)
     assert any(report.BLAST_RADIUS.match(v.replace("N", "3")) for v in values if v.startswith("blast radius"))
+
+
+def test_register_md_holds_are_ghost_md_minus_unmet_claim():
+    text = (REPO / "reference" / "register.md").read_text(encoding="utf-8")
+    paragraph = text.split("- `hold` — ", 1)[1].split("\n- ", 1)[0].split(". `reference/ghost.md`", 1)[0]
+    values = [" ".join(v.split()) for v in re.findall(r"`([^`]+)`", paragraph)]
+    assert tuple(v for v in values if not v.startswith("blast radius")) == tuple(h for h in report.HOLDS if h != report.UNMET), values
+    assert "blast radius: N consumers outside the diff" in values, values
 
 
 def test_tripwires_output_validates():
@@ -490,8 +550,13 @@ def test_resolve_base_pr_conflict_and_agreement():
         _commit(tmp, "c")
         assert report.resolve_base(pr_base=a, cwd=tmp) == {"base_sha": a, "base_ref": a, "source": "pr"}
         assert report.resolve_base("HEAD~2", pr_base=a, cwd=tmp)["source"] == "pr"
-        assert _raises(lambda: report.resolve_base("HEAD~1", pr_base=a, cwd=tmp))
-        assert b
+        assert report.resolve_base("HEAD~1", pr_base=b, cwd=tmp) == {"base_sha": b, "base_ref": b, "source": "pr"}
+        try:
+            report.resolve_base("HEAD~1", pr_base=a, cwd=tmp)
+        except report.ResolveError as exc:
+            assert str(exc) == f"--base HEAD~1 is {b}; the PR's base is {a}", exc
+        else:
+            raise AssertionError("a --base that names a different commit than the PR's base resolved")
 
 
 def test_resolve_base_chain():
@@ -512,6 +577,57 @@ def test_resolve_base_head_1_then_root():
         assert _raises(lambda: report.resolve_base(cwd=tmp))  # root commit, no main
         _commit(tmp, "b")
         assert report.resolve_base(cwd=tmp) == {"base_sha": a, "base_ref": "HEAD~1", "source": "head~1"}
+
+
+def test_resolve_base_upstream_without_merge_base_is_an_error():
+    with tempfile.TemporaryDirectory() as tmp:
+        _commit(_repo(tmp), "a")
+        _git(tmp, "checkout", "-q", "--orphan", "unrelated")
+        _commit(tmp, "b")
+        _git(tmp, "checkout", "-q", "main")
+        _git(tmp, "checkout", "-q", "-b", "feature")
+        _commit(tmp, "c")
+        _commit(tmp, "d")  # HEAD~1 and main both resolve: a silent fallback would succeed
+        _git(tmp, "branch", "-q", "--set-upstream-to=unrelated", "feature")
+        try:
+            got = report.resolve_base(cwd=tmp)
+        except report.ResolveError as exc:
+            assert "unrelated" in str(exc) and "HEAD" in str(exc), exc
+        else:
+            raise AssertionError(f"fell past the configured upstream: {got}")
+
+
+def test_resolve_base_deleted_upstream_is_an_error():
+    with tempfile.TemporaryDirectory() as tmp:
+        _commit(_repo(tmp), "a")
+        _git(tmp, "branch", "-q", "trunk")
+        _git(tmp, "checkout", "-q", "-b", "feature")
+        _commit(tmp, "b")
+        _git(tmp, "branch", "-q", "--set-upstream-to=trunk", "feature")
+        _git(tmp, "branch", "-q", "-D", "trunk")  # main and HEAD~1 still resolve
+        try:
+            got = report.resolve_base(cwd=tmp)
+        except report.ResolveError as exc:
+            assert "feature" in str(exc) and "upstream" in str(exc), exc
+        else:
+            raise AssertionError(f"fell past the deleted upstream: {got}")
+
+
+def test_resolve_base_without_git_is_a_resolve_error():
+    def missing(*_args, **_kwargs):
+        raise FileNotFoundError(2, "No such file or directory", "git")
+
+    real, report.subprocess.run = report.subprocess.run, missing
+    try:
+        assert _raises(lambda: report.resolve_base())
+    finally:
+        report.subprocess.run = real
+    with tempfile.TemporaryDirectory() as tmp:
+        done = subprocess.run(
+            [sys.executable, str(REPO / "scripts" / "report.py"), "resolve-base"],
+            cwd=tmp, env={"PATH": tmp}, capture_output=True, text=True, check=False,
+        )
+        assert done.returncode == 2 and "git" in done.stderr and "Traceback" not in done.stderr, done
 
 
 def test_cli_resolve_base_exit_2():
