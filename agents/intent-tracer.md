@@ -50,6 +50,8 @@ satisfies is the change that did not happen:
   in `evidence`: the claim's words and the diff's `path:line`.
 - A capability the claim calls for that the diff never reaches: the retry is there,
   the give-up is not.
+- A claim that one file matches another: a rule the other states that the first never
+  does — grep the first for the rule's key term; 0 hits is the unmet claim.
 
 A claim met in letter only — a test that asserts nothing, a flag parsed and ignored —
 is outside what one grep can show; report it only when the grep shows it.
@@ -59,8 +61,9 @@ is outside what one grep can show; report it only when the grep shows it.
 Two more holds, for what the human must settle rather than what you can trace:
 
 - `hold: "spec conflict"` — an unreached hunk that a context doc (`CLAUDE.md`,
-  `PRODUCT.md`, `DESIGN.md`, a design doc) argues for, or a claim that contradicts
-  one. `evidence` quotes the doc's `path:line`. For a contradicting claim, `file`,
+  `PRODUCT.md`, `DESIGN.md`, a design doc) argues for, a reached hunk whose added prose
+  states a fact about the repo that one contradicts, or a claim that contradicts one.
+  `evidence` quotes the doc's `path:line`. For a contradicting claim or hunk, `file`,
   `line`, `end_line` are the hunk that satisfies it and `claim` is its `n`; a claim no
   hunk satisfies is an `unmet claim`, with the doc in its `evidence`.
 - `hold: "behavior change"` — a hunk a claim reaches that alters behavior a test
