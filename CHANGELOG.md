@@ -2,6 +2,22 @@
 
 <!-- version list -->
 
+## v0.6.0 (2026-09-22)
+
+### Bug Fixes
+
+- Address review findings on exorcise report contract
+  ([`4a71a58`](https://github.com/jacquardlabs/exorcist/commit/4a71a5819d3f2acfa91ceb335d54685ee58fc083))
+
+### Features
+
+- Add --base and --json to exorcise with a versioned report contract
+  ([`03e729b`](https://github.com/jacquardlabs/exorcist/commit/03e729b73f7bf0f6bc4752b9b6d223dac25d9edf))
+
+- Make intent-tracer own simplicity and intent fidelity
+  ([`5661b15`](https://github.com/jacquardlabs/exorcist/commit/5661b1597aa74a93fdbdfa51c8bc514839e5945b))
+
+
 ## v0.5.0 (2026-09-22)
 
 ### Documentation
