@@ -2,6 +2,25 @@
 
 <!-- version list -->
 
+## v0.6.1 (2026-09-22)
+
+### Bug Fixes
+
+- Error on a deleted upstream in resolve-base
+  ([`fada40e`](https://github.com/jacquardlabs/exorcist/commit/fada40e23ed2ff5c4834b30b840b49dad988598b))
+
+- Harden report.py and align hold vocabulary
+  ([`92858c5`](https://github.com/jacquardlabs/exorcist/commit/92858c56b079675276901646d23e57ced26dbfc0))
+
+### Documentation
+
+- Record before/after replay for intent ownership
+  ([`dcc3dae`](https://github.com/jacquardlabs/exorcist/commit/dcc3dae92749341aef2b6ab829dbec9a3b86e206))
+
+- Record lane re-run after the intent-ownership rule edits
+  ([`46262e9`](https://github.com/jacquardlabs/exorcist/commit/46262e9016d632a1b4f6602c96d023e42d6190cd))
+
+
 ## v0.6.0 (2026-09-22)
 
 ### Bug Fixes
