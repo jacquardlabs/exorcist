@@ -78,6 +78,9 @@ passes both checks produces no finding; an empty array is a clean answer.
 
 Never `hold` for taste. Hold only when inlining or reusing would change behavior the
 diff's tests pin — `hold: "behavior change"`, the test's `path:line` in `evidence`,
-`claim: null`, and `next` one line: what the human would do.
+`claim: null`, and `next` one line: what the human would do. Before any inline or
+reuse, open and read each test lead in `leads.json` for the symbol or value it
+touches — never judge one from its grep line; one whose assertion it breaks is this
+hold, one read and cleared is no finding.
 
 **Your entire reply is the JSON array.** No prose before or after it, no code fence, no heading. A reply the command cannot parse is a lane that did not report.

@@ -78,6 +78,14 @@ python3 "${CLAUDE_PLUGIN_ROOT}/scripts/tripwires.py" < <tmp>/diff.patch > <tmp>/
 Print the text line. A crossed tripwire is a sentence of justification in the report,
 never a block and never a finding by itself. If the diff is empty, say so and stop.
 
+Then compute the leads — for each value the diff retires, every reference outside the
+diff, test files first:
+
+```bash
+python3 "${CLAUDE_PLUGIN_ROOT}/scripts/leads.py" --repo "$(git rev-parse --show-toplevel)" \
+  < <tmp>/diff.patch > <tmp>/leads.json
+```
+
 ## 3. Fan out
 
 Dispatch the four lanes **in parallel** via the Agent tool, one call each in a single
@@ -89,6 +97,7 @@ message: `exorcist:intent-tracer`, `exorcist:abstraction-hunter`,
   that quotes a design section against that section's words;
 - the path to `<tmp>/diff.patch` and to `<tmp>/tripwires.json`;
 - the repository root and `BASE`;
+- for the tracer, the hunter, and the scout, the path to `<tmp>/leads.json`;
 - the resolved absolute path of `${CLAUDE_PLUGIN_ROOT}/reference/findings.md` and
   the instruction that its entire reply is one JSON array per that contract, nothing
   else.

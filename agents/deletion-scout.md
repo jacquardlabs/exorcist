@@ -19,7 +19,10 @@ For each thing the diff adds or replaces, grep for what it supersedes:
 - A compatibility shim, alias, or re-export kept "for now" with no caller left.
 - A flag, branch, or option the change makes always-on or never-on — grep the
   condition; if every call site now passes the same value, the branch is dead.
-- A test that pins behavior the change removed, now asserting nothing.
+- A test that pins behavior the change removed, now asserting nothing. The test leads
+  in `leads.json` are where to look: open and read each one, not its grep line; one
+  that still pins a value the diff removed is this finding, `evidence` its `path:line`
+  and the assertion; one read and cleared is none.
 - A dependency the change stopped importing (`grep -rn "from <pkg>\|import <pkg>\|require(<pkg>"`).
 - A comment or doc line that states a rule about a value the diff adds or retires (a
   tier, a flag value) which the diff's own sites now break — grep the file for each such

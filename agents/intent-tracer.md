@@ -69,7 +69,10 @@ Two more holds, for what the human must settle rather than what you can trace:
   hunk satisfies is an `unmet claim`, with the doc in its `evidence`.
 - `hold: "behavior change"` — a hunk a claim reaches that alters behavior a test
   outside the diff pins, and the diff does not update that test. `evidence` names the
-  test's `path:line` and what it asserts.
+  test's `path:line` and what it asserts. `leads.json` lists every test that still
+  references a value the diff retires: open and read each one, never judge it from its
+  grep line. One whose assertion the diff breaks is this hold; one read and cleared is
+  no finding.
 
 ## Output
 
