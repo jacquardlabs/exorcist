@@ -502,6 +502,9 @@ def resolve_base(base: Optional[str] = None, pr_base: Optional[str] = None, cwd:
         if not merge_base:
             raise ResolveError(f"no merge-base between @{{upstream}} {upstream} and HEAD — pass --base")
         return {"base_sha": merge_base, "base_ref": upstream, "source": "upstream"}
+    branch = _git(["symbolic-ref", "--short", "-q", "HEAD"], cwd)
+    if branch and _git(["config", f"branch.{branch}.merge"], cwd):
+        raise ResolveError(f"{branch}'s configured upstream does not resolve (deleted or not fetched) — fetch or pass --base")
     for ref, source in (("main", "main"), ("HEAD~1", "head~1")):
         tip = _commit(ref, cwd)
         merge_base = _git(["merge-base", tip, "HEAD"], cwd) if tip else None

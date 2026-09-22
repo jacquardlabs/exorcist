@@ -162,8 +162,9 @@ def test_claims_shape():
 def test_unhashable_values_are_errors_not_type_errors():
     errors = _errors_with(lambda r: r["claims"].append({"n": [2], "text": "t"}))
     assert "claims[2]: needs integer n and one-line text" in errors and "claims: duplicate n" not in errors, errors
-    assert any("concepts" in e for e in _errors_with(lambda r: r["applied"][0].update(concepts=[["RetryPolicy"]])))
-    assert any("concepts" in e for e in _errors_with(lambda r: r["applied"][0].update(concepts=[{}])))
+    for bad in ([["RetryPolicy"]], [{}]):
+        errors = _errors_with(lambda r, v=bad: r["applied"][0].update(concepts=v))
+        assert "applied[0]: concepts must be a list of strings" in errors, (bad, errors)
 
 
 def test_held_carries_claim_and_next():
@@ -347,6 +348,20 @@ def test_merge_non_utf8_lane_did_not_report():
         run = [sys.executable, str(REPO / "scripts" / "report.py"), "findings", str(paths[0])]
         done = subprocess.run(run, capture_output=True, text=True, check=False)
         assert done.returncode == 1 and "does not parse" in done.stdout, done
+
+
+def test_merge_cli_non_utf8_tripwires_or_scope_exits_1():
+    with tempfile.TemporaryDirectory() as tmp:
+        paths = _lanes(tmp, trace=[], abstraction=[], threshold=[], deletion=[])
+        good, bad = Path(tmp) / "good.json", Path(tmp) / "bad.json"
+        good.write_text("{}")
+        bad.write_bytes(b"{\xff}")
+        out = Path(tmp) / "report.json"
+        for tw, sc in ((bad, good), (good, bad)):
+            run = [sys.executable, str(REPO / "scripts" / "report.py"), "merge", str(out), *map(str, paths),
+                   "--tripwires", str(tw), "--scope", str(sc)]
+            done = subprocess.run(run, capture_output=True, text=True, check=False)
+            assert done.returncode == 1 and done.stdout.startswith("merge:") and not out.exists(), done
 
 
 def test_merge_draft_validates_once_the_command_fills_it():
@@ -580,6 +595,22 @@ def test_resolve_base_upstream_without_merge_base_is_an_error():
             assert "unrelated" in str(exc) and "HEAD" in str(exc), exc
         else:
             raise AssertionError(f"fell past the configured upstream: {got}")
+
+
+def test_resolve_base_deleted_upstream_is_an_error():
+    with tempfile.TemporaryDirectory() as tmp:
+        _commit(_repo(tmp), "a")
+        _git(tmp, "branch", "-q", "trunk")
+        _git(tmp, "checkout", "-q", "-b", "feature")
+        _commit(tmp, "b")
+        _git(tmp, "branch", "-q", "--set-upstream-to=trunk", "feature")
+        _git(tmp, "branch", "-q", "-D", "trunk")  # main and HEAD~1 still resolve
+        try:
+            got = report.resolve_base(cwd=tmp)
+        except report.ResolveError as exc:
+            assert "feature" in str(exc) and "upstream" in str(exc), exc
+        else:
+            raise AssertionError(f"fell past the deleted upstream: {got}")
 
 
 def test_resolve_base_without_git_is_a_resolve_error():

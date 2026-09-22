@@ -60,8 +60,8 @@ python3 "${CLAUDE_PLUGIN_ROOT}/scripts/report.py" resolve-base [--base REF] [--p
 
 It prints `{"base_sha", "base_ref", "source"}`. The rule, in order: `--base` (a ref
 that does not resolve is an error, never a fallback); the PR's base (a `--base` that
-names a different commit is an error); `@{upstream}` (one with no merge-base with HEAD
-is an error, never a fall-through to `main`); `main`; `HEAD~1`. `base_sha` is the
+names a different commit is an error); `@{upstream}` (one that is configured but no longer
+resolves, or has no merge-base with HEAD, is an error, never a fall-through to `main`); `main`; `HEAD~1`. `base_sha` is the
 merge-base with HEAD. Exit 2 → print its message and stop.
 
 `BASE` is `base_sha`; the apply step reads original hunk content from it. The diff is
