@@ -69,3 +69,22 @@ deletion-scout finding every run.
 Known gaps: `key: value` lines in `.md` files are read as YAML even outside frontmatter,
 and numeric values (a retry limit changed from 3 to 5) are never leads, since a token needs
 a letter.
+
+## Review fix — the scout deleted the test that reports the break
+
+In all 3 runs deletion-scout raised the break as `action: "delete"` on
+`tests/test_dispatch_telemetry.sh:70-74`. It sat in a different file from the tracer's
+hold at `agents/doc-auditor.md:5`, so dedup kept both, and apply would have deleted the
+test. Two fixes:
+
+- deletion-scout reports a lead that still asserts a retired value as `hold: "behavior
+  change"`, never `delete`.
+- `report.py merge --leads` converts any `delete` or `revert` over a test lead line into
+  that hold. On r1-1's replies, the scout's delete comes out held and nothing applies to
+  the test.
+
+`leads.py` also changed. It now searches untouched lines of files the diff touches,
+excluding only the diff's own `+` lines. Extensionless files count as code, so `tests/run`
+is a test. `FooTest.java`-style names match case-sensitively, so `latest.py` is not a test.
+Tokens with no letter are counted as `no_letter`, not `short`. The replay's leads are
+unchanged: 1 value, 20 refs, 9 test refs, `tests/test_dispatch_telemetry.sh:73` third.

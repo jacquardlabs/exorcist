@@ -124,14 +124,15 @@ NOISE_FILES = {
 }
 
 
-def test_still_added_tokens_keywords_and_in_diff_files_are_excluded():
+def test_still_added_tokens_keywords_and_diff_plus_lines_are_excluded():
     with tempfile.TemporaryDirectory() as tmp:
         result = leads.leads(NOISE_DIFF, _tree(tmp, NOISE_FILES))
     # compute_total is still on the '+' side; `self` is a keyword; `for`/`in`/`if` are
-    # short; tests/test_queue.py is in the diff, so only src/other.py remains.
+    # short. tests/test_queue.py is in the diff, but only its '+' line is excluded: the
+    # untouched line 2 still references the retired value, test first.
     assert [lead["value"] for lead in result["leads"]] == ["pending_items"], result["leads"]
     refs, _ = _refs(result, "pending_items")
-    assert refs == ["src/other.py:1"], refs
+    assert refs == ["tests/test_queue.py:2", "src/other.py:1"], refs
     assert result["filtered"]["still_added"] >= 1 and result["filtered"]["keyword"] >= 1, result["filtered"]
 
 
@@ -178,6 +179,26 @@ def test_a_git_that_errors_falls_back_to_the_walk():
         leads.subprocess.run = real
     refs, _ = _refs(result, "old_helper")
     assert refs[0] == "tests/test_lib.py:1" and len(refs) == 4, refs
+
+
+def test_parse_numbers_plus_lines_on_the_new_side():
+    diff = "--- a/f.py\n+++ b/f.py\n@@ -3,2 +10,3 @@\n ctx\n-gone\n+one\n+two\n"
+    _, minus, plus = leads.parse(diff)
+    assert minus == [("f.py", 4, "gone")] and plus == [("f.py", 11, "one"), ("f.py", 12, "two")], (minus, plus)
+
+
+def test_is_test_paths():
+    for path in ("tests/run", "src/FooTest.java", "src/foo.spec.ts", "test_x.py", "pkg/__tests__/a.js"):
+        assert leads.is_test(path), path
+    for path in ("src/latest.py", "scripts/contest.js", "src/respec.ts", "tests/README.md", "Makefile"):
+        assert not leads.is_test(path), path
+
+
+def test_numeric_tokens_are_counted_apart_from_short_ones():
+    diff = "--- a/c.py\n+++ b/c.py\n@@ -1,1 +1,1 @@\n-LIMIT = \"123456\"\n+LIMIT = \"5\"\n"
+    with tempfile.TemporaryDirectory() as tmp:
+        result = leads.leads(diff, _tree(tmp, {"c.py": 'LIMIT = "5"\n'}))
+    assert result["filtered"]["no_letter"] == 1 and result["filtered"]["short"] == 0, result["filtered"]
 
 
 def test_hunk_counts_keep_a_removed_double_dash_line_out_of_the_headers():

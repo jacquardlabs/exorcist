@@ -273,6 +273,30 @@ def _lanes(tmp, **replies):
     return paths
 
 
+def test_merge_holds_a_delete_over_a_test_lead():
+    leads = {"leads": [{"value": "inherit", "refs": [
+        {"path": "tests/t.sh", "line": 73, "test": True},
+        {"path": "CLAUDE.md", "line": 5, "test": False},
+    ]}]}
+    with tempfile.TemporaryDirectory() as tmp:
+        paths = _lanes(tmp, deletion=[
+            _finding(lane="deletion", file="tests/t.sh", line=70, end_line=74, action="delete", target=None),
+            _finding(lane="deletion", file="CLAUDE.md", line=5, end_line=5, action="delete", target=None),
+            _finding(lane="deletion", file="tests/t.sh", line=100, end_line=101, action="delete", target=None),
+        ])
+        draft, errors = report.merge(paths, {}, {}, False, leads)
+    assert not errors, errors
+    [held] = draft["held"]
+    assert (held["file"], held["hold"], held["target"], held["concepts"]) == ("tests/t.sh", "behavior change", None, []), held
+    assert "tests/t.sh:73" in held["next"] and "was delete" in held["evidence"], held
+    assert sorted((f["file"], f["line"]) for f in draft["applied"]) == [("CLAUDE.md", 5), ("tests/t.sh", 100)]
+    assert report.validate_findings([{k: v for k, v in held.items() if k != "also"}]) == []
+    with tempfile.TemporaryDirectory() as tmp:  # no leads → nothing converts
+        draft, _ = report.merge(_lanes(tmp, deletion=[_finding(lane="deletion", file="tests/t.sh", line=70,
+                                                               end_line=74, action="delete", target=None)]), {}, {}, False)
+    assert draft["held"] == [], draft["held"]
+
+
 def test_merge_counts_before_dedup_and_skips_other_lanes():
     with tempfile.TemporaryDirectory() as tmp:
         shared = {"file": "src/a.ts", "line": 5, "end_line": 9}

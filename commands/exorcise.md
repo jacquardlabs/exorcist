@@ -108,13 +108,15 @@ Write each reply verbatim to `<tmp>/findings/<lane>.json`, named by the findings
 
 ```bash
 python3 "${CLAUDE_PLUGIN_ROOT}/scripts/report.py" merge <tmp>/report.json <tmp>/findings/*.json \
-  --tripwires <tmp>/tripwires.json --scope <tmp>/scope.json [--single-pass]
+  --tripwires <tmp>/tripwires.json --scope <tmp>/scope.json --leads <tmp>/leads.json [--single-pass]
 ```
 
 It strips exactly one code fence wrapped around each reply — that is transport, not
 content — and validates every finding against the contract. A lane with any invalid
 finding did not report: merge prints its errors; say which lane in the report, do not
-repair or re-ask. It writes the draft report — lanes, deduped findings, and
+repair or re-ask. A `delete` or `revert` over a test line `leads.json` lists becomes
+`hold: "behavior change"` — deleting a test that still asserts a retired value hides
+the break it reports. It writes the draft report — lanes, deduped findings, and
 `out_of_intent_files` — whether or not `--json` was given; §4 to §7 work from it.
 
 Without the Agent tool: run the four lanes yourself in one pass, same contract, write

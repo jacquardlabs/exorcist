@@ -5,14 +5,14 @@ Reads a unified diff on stdin and prints JSON. A value is retired when a '-' lin
 carries it and no '+' line anywhere in the diff carries it the same way: a
 `key: value` scalar (YAML, frontmatter) by the same key, a quoted or backticked
 literal as the same literal, a code identifier as the same identifier. For each
-retired value, every file outside the diff that references it, test files first,
-as path:line and the line's text. The lanes read each lead; this script decides
+retired value, every line outside the diff's '+' lines that references it, test files
+first, as path:line and the line's text. The lanes read each lead; this script decides
 nothing.
 
     python3 leads.py [--repo ROOT] [--min-len 4] [--per-value 20] [--total 200] < diff.patch
 
 Noise is filtered deterministically and every filter reports a count: tokens shorter
-than --min-len, keywords and stopwords, values still on the '+' side, values nothing
+than --min-len, tokens with no letter, keywords and stopwords, values still on the '+' side, values nothing
 outside the diff references. Caps keep test references first; what they drop is
 counted per value and in total, never silently. Standard library only,
 3.9-compatible; uses `git grep` when ROOT is a git work tree, else walks it.
@@ -34,7 +34,7 @@ PER_VALUE = 20
 TOTAL = 200
 TEXT_WIDTH = 200
 
-PROSE_EXTS = {".md", ".mdx", ".markdown", ".rst", ".txt", ""}
+PROSE_EXTS = {".md", ".mdx", ".markdown", ".rst", ".txt"}
 YAML_EXTS = {".yml", ".yaml", ".md", ".mdx", ".markdown"}
 COMMENT_PREFIXES = ("#", "//", "/*", "*", "<!--", "--", ";")
 
@@ -59,7 +59,8 @@ STOPWORDS = frozenset(
 )
 
 TEST_DIRS = {"test", "tests", "__tests__", "spec", "specs"}
-TEST_NAME = re.compile(r"(?:^|[._-])(?:tests?|spec)(?:[._-]|$)|^test|(?:Tests?|Spec)\.[^.]+$", re.IGNORECASE)
+TEST_NAME = re.compile(r"(?:^|[._-])(?:tests?|spec)(?:[._-]|$)|^test", re.IGNORECASE)
+TEST_CAMEL = re.compile(r"[a-z0-9](?:Tests?|Spec)\.[^.]+$")  # FooTest.java, not latest.py
 
 YAML_PAIR = re.compile(r"""^\s*(?:-\s+)?([A-Za-z_][\w.-]*):\s+["']?([^\s"'#]+)["']?\s*(?:#.*)?$""")
 LITERAL = re.compile(r'"([^"\\\n]*)"|\'([^\'\\\n]*)\'|`([^`\n]*)`')
@@ -85,7 +86,7 @@ def is_test(path: str) -> bool:
     parts = path.split("/")
     if _ext(path) in PROSE_EXTS:
         return False
-    return any(p.lower() in TEST_DIRS for p in parts[:-1]) or bool(TEST_NAME.search(parts[-1]))
+    return any(p.lower() in TEST_DIRS for p in parts[:-1]) or bool(TEST_NAME.search(parts[-1]) or TEST_CAMEL.search(parts[-1]))
 
 
 def _as_retired(text: str, token: str, keys: Set[str]) -> bool:
@@ -130,13 +131,13 @@ def values(path: str, line: str) -> Set[Value]:
     return found
 
 
-def parse(diff: str) -> Tuple[Set[str], List[Tuple[str, int, str]], List[Tuple[str, str]]]:
-    """Changed paths (both sides), '-' lines as (path, old line, text), '+' lines as (path, text)."""
+def parse(diff: str) -> Tuple[Set[str], List[Tuple[str, int, str]], List[Tuple[str, int, str]]]:
+    """Changed paths (both sides), '-' lines as (path, old line, text), '+' lines as (path, new line, text)."""
     changed: Set[str] = set()
     minus: List[Tuple[str, int, str]] = []
-    plus: List[Tuple[str, str]] = []
+    plus: List[Tuple[str, int, str]] = []
     old_path = new_path = ""
-    old_line = old_left = new_left = 0
+    old_line = new_line = old_left = new_left = 0
     for raw in diff.splitlines():
         if old_left > 0 or new_left > 0:
             tag, body = raw[:1], raw[1:]
@@ -145,10 +146,12 @@ def parse(diff: str) -> Tuple[Set[str], List[Tuple[str, int, str]], List[Tuple[s
                 old_line += 1
                 old_left -= 1
             elif tag == "+":
-                plus.append((new_path, body))
+                plus.append((new_path, new_line, body))
+                new_line += 1
                 new_left -= 1
             elif tag in (" ", ""):
                 old_line += 1
+                new_line += 1
                 old_left -= 1
                 new_left -= 1
             continue
@@ -164,11 +167,11 @@ def parse(diff: str) -> Tuple[Set[str], List[Tuple[str, int, str]], List[Tuple[s
             if old_path == "/dev/null":
                 old_path = new_path
         elif raw.startswith("@@"):
-            m = re.match(r"@@ -(\d+)(?:,(\d+))? \+\d+(?:,(\d+))? @@", raw)
+            m = re.match(r"@@ -(\d+)(?:,(\d+))? \+(\d+)(?:,(\d+))? @@", raw)
             if m:
-                old_line = int(m.group(1))
+                old_line, new_line = int(m.group(1)), int(m.group(3))
                 old_left = int(m.group(2)) if m.group(2) is not None else 1
-                new_left = int(m.group(3)) if m.group(3) is not None else 1
+                new_left = int(m.group(4)) if m.group(4) is not None else 1
     return changed, minus, plus
 
 
@@ -215,19 +218,24 @@ def leads(
     per_value: int = PER_VALUE,
     total: int = TOTAL,
 ) -> Dict[str, object]:
-    changed, minus, plus = parse(diff)
-    added = {v for path, text in plus for v in values(path, text)}
+    _, minus, plus = parse(diff)
+    added = {v for path, _, text in plus for v in values(path, text)}
+    # A file the diff touches still gets searched: its untouched lines can pin a value
+    # the diff retired. Only the diff's own '+' lines are excluded.
+    added_at = {(path, line) for path, line, _ in plus}
     retired: Dict[Value, List[Tuple[str, int, str]]] = {}
     for path, line, text in minus:
         for value in values(path, text):
             retired.setdefault(value, []).append((path, line, text))
 
-    filtered = {"short": 0, "keyword": 0, "still_added": 0, "unreferenced": 0}
+    filtered = {"short": 0, "no_letter": 0, "keyword": 0, "still_added": 0, "unreferenced": 0}
     by_token: Dict[str, Dict[str, object]] = {}
     for value in sorted(retired):
         kind, key, token = value
-        if len(token) < min_len or not re.search(r"[A-Za-z_]", token):
+        if len(token) < min_len:
             filtered["short"] += 1
+        elif not re.search(r"[A-Za-z_]", token):
+            filtered["no_letter"] += 1
         elif token.lower() in STOPWORDS:
             filtered["keyword"] += 1
         elif value in added:
@@ -244,7 +252,7 @@ def leads(
     for token in sorted(by_token):
         keys = by_token[token]["keys"]
         refs = sorted(
-            (h for h in _grep(root, token) if h[0] not in changed),
+            (h for h in _grep(root, token) if (h[0], h[1]) not in added_at),
             key=lambda h: (not is_test(h[0]), not _as_retired(h[2], token, keys), h[0], h[1]),
         )
         if not refs:
