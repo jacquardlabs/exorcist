@@ -203,8 +203,211 @@ def test_numeric_tokens_are_counted_apart_from_short_ones():
 
 def test_hunk_counts_keep_a_removed_double_dash_line_out_of_the_headers():
     diff = "--- a/q.sql\n+++ b/q.sql\n@@ -1,2 +1,1 @@\n--- old_table_name note\n select 1;\n"
-    changed, minus, plus = leads.parse(diff)
-    assert changed == {"q.sql"} and minus == [("q.sql", 1, "-- old_table_name note")] and plus == [], minus
+    paths, minus, plus = leads.parse(diff)
+    assert paths == {"q.sql": "q.sql"} and minus == [("q.sql", 1, "-- old_table_name note")] and plus == [], minus
+
+
+NUMBER_DIFF = """\
+--- a/src/config.py
++++ b/src/config.py
+@@ -1,2 +1,2 @@
+-MAX_RETRIES = 3
++MAX_RETRIES = 5
+ TIMEOUT = 30
+"""
+
+NUMBER_FILES = {
+    "src/config.py": "MAX_RETRIES = 5\nTIMEOUT = 30\n",
+    "tests/test_retry.py": "from config import MAX_RETRIES\n\n\ndef test_cap():\n    assert MAX_RETRIES == 3\n",
+    "tests/test_client.py": "from config import MAX_RETRIES\nassert len(calls) == 3\n",
+    "tests/test_items.py": "assert len(items) == 3\n",
+    "src/app.py": "for _ in range(MAX_RETRIES):\n    pass\n",
+    "src/pool.py": "size = 3\n",
+}
+
+
+def test_a_retired_number_bound_to_a_name_leads_to_the_test_that_asserts_it():
+    with tempfile.TemporaryDirectory() as tmp:
+        result = leads.leads(NUMBER_DIFF, _tree(tmp, NUMBER_FILES))
+    # The name stays on the '+' side; the pair (MAX_RETRIES, 3) does not.
+    assert [lead["value"] for lead in result["leads"]] == ["MAX_RETRIES = 3"], result["leads"]
+    refs, lead = _refs(result, "MAX_RETRIES = 3")
+    assert lead["kinds"] == ["number"] and lead["retired"] == ["src/config.py:1"], lead
+    # Name and number on one line first, then a test's bare 3 beside the name. A 3 with
+    # no name near it, and the name with no 3, are not references.
+    assert refs == ["tests/test_retry.py:5", "tests/test_client.py:2"], refs
+    assert result["filtered"]["no_letter"] == 0, result["filtered"]
+
+
+def test_a_yaml_number_that_changes_under_the_same_key_is_retired():
+    diff = "--- a/config.yml\n+++ b/config.yml\n@@ -1,1 +1,1 @@\n-retries: 3\n+retries: 5\n"
+    files = {"config.yml": "retries: 5\n", "tests/test_cfg.py": 'assert cfg["retries"] == 3\n'}
+    with tempfile.TemporaryDirectory() as tmp:
+        result = leads.leads(diff, _tree(tmp, files))
+    refs, lead = _refs(result, "retries = 3")
+    assert lead["kinds"] == ["number"] and refs == ["tests/test_cfg.py:1"], lead
+    assert result["filtered"]["no_letter"] == 0 and result["filtered"]["short"] == 0, result["filtered"]
+
+
+def test_the_same_pair_bound_elsewhere_is_not_retired():
+    diff = (
+        "--- a/src/a.py\n+++ b/src/a.py\n@@ -1,1 +0,0 @@\n-MAX_RETRIES = 3\n"
+        "--- a/src/b.js\n+++ b/src/b.js\n@@ -0,0 +1,1 @@\n+export const MAX_RETRIES = 3;\n"
+    )
+    files = {"src/b.js": "export const MAX_RETRIES = 3;\n", "tests/test_retry.py": "assert MAX_RETRIES == 3\n"}
+    with tempfile.TemporaryDirectory() as tmp:
+        result = leads.leads(diff, _tree(tmp, files))
+    assert result["leads"] == [] and result["filtered"]["still_added"] == 2, result
+
+
+def test_bindings_need_a_name_and_a_number_that_ends_the_value():
+    pairs = {
+        "MAX_RETRIES = 3": {("MAX_RETRIES", "3")},
+        "const MAX_RETRIES: number = 3;": {("MAX_RETRIES", "3")},
+        "client(max_retries=3, RETRIES=4, timeout=2.5)": {("max_retries", "3"), ("RETRIES", "4")},
+        '  "retries": 3,': {("retries", "3")},
+        'local gate="" findings=0 MAX_A=1 MAX_B=2': {("MAX_A", "1"), ("MAX_B", "2")},
+        "retries: { audit: 2 }": set(),
+        "  margin: 0;": set(),
+        "self.max_retries = -1  # none": {("max_retries", "-1")},
+        "if retries == 3:": set(),
+        "delay = 3 * base": set(),
+        "total += 3": set(),
+        "# MAX_RETRIES = 3": set(),
+        "x = items[start_idx:3]": set(),
+        "const y = isOk ? zVal : 3": set(),
+        "cfg = { maxRetries: 3 }": {("maxRetries", "3")},
+    }
+    for line, want in pairs.items():
+        got = {(k, t) for kind, k, t in leads.values("src/x.py", line) if kind == "number"}
+        assert got == want, (line, got)
+
+
+def test_a_bare_number_counts_only_in_a_test_within_pair_span_of_the_name():
+    files = {
+        "src/config.py": "MAX_RETRIES = 5\n",
+        "tests/test_span.py": "MAX_RETRIES\n\n3\n\n\n3\n",  # :3 is 2 lines away, :6 is 5
+        "src/near.py": "MAX_RETRIES\n3\n",  # not a test: the near tier never applies
+    }
+    with tempfile.TemporaryDirectory() as tmp:
+        result = leads.leads(NUMBER_DIFF, _tree(tmp, files))
+    refs, _ = _refs(result, "MAX_RETRIES = 3")
+    assert refs == ["tests/test_span.py:3"], refs
+
+
+def test_short_and_stopword_names_filter_a_bound_number():
+    diff = "--- a/src/c.py\n+++ b/src/c.py\n@@ -1,2 +0,0 @@\n-MAX = 3\n-TYPE = 7\n"
+    files = {"tests/test_c.py": "assert MAX == 3 and TYPE == 7\n"}
+    with tempfile.TemporaryDirectory() as tmp:
+        result = leads.leads(diff, _tree(tmp, files))
+    assert result["leads"] == [], result["leads"]
+    # MAX is short and TYPE a keyword both as bound numbers and as bare identifiers.
+    assert result["filtered"]["short"] == 2 and result["filtered"]["keyword"] == 2, result["filtered"]
+
+
+def test_a_number_in_frontmatter_is_a_number_lead():
+    diff = "--- a/agents/a.md\n+++ b/agents/a.md\n@@ -1,3 +1,3 @@\n ---\n-max_turns: 3\n+max_turns: 5\n ---\n"
+    files = {"agents/a.md": "---\nmax_turns: 5\n---\n", "tests/test_a.py": 'assert meta["max_turns"] == 3\n'}
+    with tempfile.TemporaryDirectory() as tmp:
+        result = leads.leads(diff, _tree(tmp, files))
+    refs, lead = _refs(result, "max_turns = 3")
+    assert lead["kinds"] == ["number"] and refs == ["tests/test_a.py:1"], lead
+
+
+def test_a_shell_binding_followed_by_another_is_still_bound():
+    diff = (
+        '--- a/run.sh\n+++ b/run.sh\n@@ -1,1 +1,1 @@\n-local gate="" MAX_FINDINGS=0\n'
+        '+local gate="" MAX_FINDINGS=0 MAX_HISTORY=0\n'
+    )
+    files = {"run.sh": 'local gate="" MAX_FINDINGS=0 MAX_HISTORY=0\n', "tests/test_run.sh": "check MAX_FINDINGS=0\n"}
+    with tempfile.TemporaryDirectory() as tmp:
+        result = leads.leads(diff, _tree(tmp, files))
+    # The pair is still on the '+' line, only no longer last on it.
+    assert result["leads"] == [] and result["filtered"]["still_added"] >= 1, result
+
+
+def test_a_plain_word_bound_to_a_number_in_code_is_not_a_lead():
+    diff = "--- a/src/job.py\n+++ b/src/job.py\n@@ -1,1 +1,1 @@\n-subprocess.run(cmd, timeout=30)\n+run(cmd)\n"
+    files = {"src/job.py": "run(cmd)\n", "tests/test_job.py": "subprocess.run(other, timeout=30)\n"}
+    with tempfile.TemporaryDirectory() as tmp:
+        result = leads.leads(diff, _tree(tmp, files))
+    # Deleting one call site's kwarg retires no policy; another call site's kwarg is no pin.
+    assert all(" = " not in lead["value"] for lead in result["leads"]), result["leads"]
+
+
+def test_a_number_bound_in_a_test_fixture_is_not_retired():
+    diff = '--- a/tests/test_board.py\n+++ b/tests/test_board.py\n@@ -1,1 +0,0 @@\n-    "retries": {"audit": 1},\n'
+    files = {"tests/test_board.py": "", "tests/test_gate.py": 'assert r["audit"] == 1\n'}
+    with tempfile.TemporaryDirectory() as tmp:
+        result = leads.leads(diff, _tree(tmp, files))
+    assert all("number" not in lead["kinds"] for lead in result["leads"]), result["leads"]
+
+
+def test_prose_shaped_like_yaml_outside_frontmatter_retires_nothing():
+    diff = "--- a/README.md\n+++ b/README.md\n@@ -4,1 +4,1 @@\n-Status: draft\n+Status: final\n"
+    files = {"README.md": "# Tool\n\nIntro.\nStatus: final\n", "tests/test_status.py": 'assert doc.status == "draft"\n'}
+    with tempfile.TemporaryDirectory() as tmp:
+        result = leads.leads(diff, _tree(tmp, files))
+    assert result["leads"] == [], result["leads"]
+
+
+BODY_DIFF = """\
+--- a/agents/a.md
++++ b/agents/a.md
+@@ -3,5 +3,5 @@
+ tools: Read
+-model: inherit
++model: claude-opus-5
+ ---
+ 
+-Status: draft
++Status: final
+"""
+
+BODY_FILES = {
+    "agents/a.md": "---\nname: a\ntools: Read\nmodel: claude-opus-5\n---\n\nStatus: final\n",
+    "tests/test_pins.py": 'assert model == "inherit"\nassert status == "draft"\n',
+}
+
+
+def test_frontmatter_a_hunk_does_not_open_still_retires_and_the_body_after_it_does_not():
+    with tempfile.TemporaryDirectory() as tmp:
+        result = leads.leads(BODY_DIFF, _tree(tmp, BODY_FILES))
+    assert [lead["value"] for lead in result["leads"]] == ["inherit"], result["leads"]
+    refs, lead = _refs(result, "inherit")
+    assert lead["kinds"] == ["yaml"] and lead["retired"] == ["agents/a.md:4"] and refs == ["tests/test_pins.py:1"], lead
+
+
+def test_frontmatter_ends_per_side_from_the_new_file_and_the_diff():
+    grown = "--- a/a.md\n+++ b/a.md\n@@ -2,3 +2,5 @@\n name: a\n+effort: low\n+tier: 2\n-model: inherit\n+model: x\n ---\n"
+    gone = "--- a/b.md\n+++ /dev/null\n@@ -1,3 +0,0 @@\n----\n-model: inherit\n----\n"
+    files = {"a.md": "---\nname: a\neffort: low\ntier: 2\nmodel: x\n---\nkey: v\n"}
+    with tempfile.TemporaryDirectory() as tmp:
+        root = _tree(tmp, files, git=False)
+        paths, minus, plus = leads.parse(grown + gone)
+        ends = leads.frontmatter(root, paths, minus, plus)
+        # A new side that disagrees with the diff is not trusted past the diff's own lines.
+        (root / "a.md").write_text("---\nstale\n---\n")
+        stale = leads.frontmatter(root, paths, minus, plus)
+    assert ends == {("-", "a.md"): 4, ("+", "a.md"): 6, ("-", "b.md"): 3, ("+", "b.md"): 0}, ends
+    assert stale[("-", "a.md")] == 0 and stale[("+", "a.md")] == 0, stale
+
+
+def test_a_renamed_markdown_file_still_retires_its_frontmatter_value():
+    diff = (
+        "diff --git a/old.md b/new.md\nsimilarity index 80%\nrename from old.md\nrename to new.md\n"
+        "--- a/old.md\n+++ b/new.md\n@@ -3,1 +3,1 @@\n-model: inherit\n+model: opus\n"
+    )
+    files = {"new.md": "---\nname: a\nmodel: opus\n---\n", "tests/test_pins.py": 'assert model == "inherit"\n'}
+    with tempfile.TemporaryDirectory() as tmp:
+        root = _tree(tmp, files)
+        paths, minus, plus = leads.parse(diff)
+        ends = leads.frontmatter(root, paths, minus, plus)
+        result = leads.leads(diff, root)
+    # The old side is rebuilt from the new path's content, not from the vanished old path.
+    assert paths == {"old.md": "new.md"} and ends == {("-", "old.md"): 4, ("+", "new.md"): 4}, (paths, ends)
+    refs, lead = _refs(result, "inherit")
+    assert lead["kinds"] == ["yaml"] and lead["retired"] == ["old.md:3"] and refs == ["tests/test_pins.py:1"], lead
 
 
 def test_cli_prints_json():
