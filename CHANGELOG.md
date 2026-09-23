@@ -2,6 +2,22 @@
 
 <!-- version list -->
 
+## v0.8.0 (2026-09-23)
+
+### Bug Fixes
+
+- Address review findings on numeric leads
+  ([`d1b38e6`](https://github.com/jacquardlabs/exorcist/commit/d1b38e6140e0d8e69cd9f1ed1ef15485b48415cb))
+
+- Slices and ternaries bind no number; cover span, filter, and frontmatter numbers
+  ([`6429826`](https://github.com/jacquardlabs/exorcist/commit/6429826c79238f0b484907209deaf5784b678030))
+
+### Features
+
+- Retire numeric values bound to a name; read .md YAML only in frontmatter
+  ([`a756f78`](https://github.com/jacquardlabs/exorcist/commit/a756f7861249f367b09fa8e943d7ee085521a41f))
+
+
 ## v0.7.0 (2026-09-22)
 
 ### Bug Fixes
