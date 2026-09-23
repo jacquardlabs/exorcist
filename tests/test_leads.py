@@ -274,10 +274,44 @@ def test_bindings_need_a_name_and_a_number_that_ends_the_value():
         "delay = 3 * base": set(),
         "total += 3": set(),
         "# MAX_RETRIES = 3": set(),
+        "x = items[start_idx:3]": set(),
+        "const y = isOk ? zVal : 3": set(),
+        "cfg = { maxRetries: 3 }": {("maxRetries", "3")},
     }
     for line, want in pairs.items():
         got = {(k, t) for kind, k, t in leads.values("src/x.py", line) if kind == "number"}
         assert got == want, (line, got)
+
+
+def test_a_bare_number_counts_only_in_a_test_within_pair_span_of_the_name():
+    files = {
+        "src/config.py": "MAX_RETRIES = 5\n",
+        "tests/test_span.py": "MAX_RETRIES\n\n3\n\n\n3\n",  # :3 is 2 lines away, :6 is 5
+        "src/near.py": "MAX_RETRIES\n3\n",  # not a test: the near tier never applies
+    }
+    with tempfile.TemporaryDirectory() as tmp:
+        result = leads.leads(NUMBER_DIFF, _tree(tmp, files))
+    refs, _ = _refs(result, "MAX_RETRIES = 3")
+    assert refs == ["tests/test_span.py:3"], refs
+
+
+def test_short_and_stopword_names_filter_a_bound_number():
+    diff = "--- a/src/c.py\n+++ b/src/c.py\n@@ -1,2 +0,0 @@\n-MAX = 3\n-TYPE = 7\n"
+    files = {"tests/test_c.py": "assert MAX == 3 and TYPE == 7\n"}
+    with tempfile.TemporaryDirectory() as tmp:
+        result = leads.leads(diff, _tree(tmp, files))
+    assert result["leads"] == [], result["leads"]
+    # MAX is short and TYPE a keyword both as bound numbers and as bare identifiers.
+    assert result["filtered"]["short"] == 2 and result["filtered"]["keyword"] == 2, result["filtered"]
+
+
+def test_a_number_in_frontmatter_is_a_number_lead():
+    diff = "--- a/agents/a.md\n+++ b/agents/a.md\n@@ -1,3 +1,3 @@\n ---\n-max_turns: 3\n+max_turns: 5\n ---\n"
+    files = {"agents/a.md": "---\nmax_turns: 5\n---\n", "tests/test_a.py": 'assert meta["max_turns"] == 3\n'}
+    with tempfile.TemporaryDirectory() as tmp:
+        result = leads.leads(diff, _tree(tmp, files))
+    refs, lead = _refs(result, "max_turns = 3")
+    assert lead["kinds"] == ["number"] and refs == ["tests/test_a.py:1"], lead
 
 
 def test_a_shell_binding_followed_by_another_is_still_bound():

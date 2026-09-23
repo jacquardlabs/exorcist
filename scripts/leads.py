@@ -129,6 +129,12 @@ def _code_idents(line: str) -> Iterator[str]:
             yield word
 
 
+def _slice_or_ternary(line: str, m: "re.Match[str]") -> bool:
+    """`xs[start_idx:3]` and `ok ? val : 3` bind nothing: a bare ':' after `[` or `?`."""
+    before = line[: m.start()]
+    return "=" not in line[m.end(2): m.start(3)] and (before.rstrip().endswith(("[", ":")) or "?" in before)
+
+
 def values(path: str, line: str, frontmatter: bool = False) -> Set[Value]:
     """Every typed value one diff line carries. A markdown line reads as YAML only when
     it lies in the file's frontmatter."""
@@ -151,7 +157,8 @@ def values(path: str, line: str, frontmatter: bool = False) -> Set[Value]:
     found.update(
         ("number", m.group(2), m.group(3))
         for m in ([] if is_test(path) else NUM_BIND.finditer(uncommented))
-        if m.group(1) or CODE_SHAPE.search(m.group(2)) or m.group(2).isupper()
+        if (m.group(1) or CODE_SHAPE.search(m.group(2)) or m.group(2).isupper())
+        and not _slice_or_ternary(uncommented, m)
     )
     code = LITERAL.sub('""', line)
     code = re.split(r"\s#|\s//|^#|^//", code, maxsplit=1)[0]
