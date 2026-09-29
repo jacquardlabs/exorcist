@@ -99,7 +99,8 @@ are not stored; they derive from `applied` and `held`.
   `includes_worktree` is true when §2 added `git diff HEAD`. `hunks` is at least 1; an
   empty diff writes no report.
 - `lanes` — `trace`, `abstraction`, `threshold`, `deletion`, each `reported` or `did
-  not report`. A lane did not report when its reply failed `report.py findings`.
+  not report`. A lane did not report when its reply failed `report.py findings` — for
+  a reply that did not parse, after §3's one re-dispatch also failed.
 - `single_pass` — true when §3 ran without the Agent tool: the evidence is one
   reader's. A lane can still be `did not report` when its array failed validation.
 - `concepts_removed` — the `concepts` of every `applied` entry with status `applied`,

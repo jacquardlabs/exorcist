@@ -83,4 +83,4 @@ reuse, open and read each test lead in `leads.json` for the symbol or value it
 touches — never judge one from its grep line; one whose assertion it breaks is this
 hold, one read and cleared is no finding.
 
-**Your entire reply is the JSON array.** No prose before or after it, no code fence, no heading. A reply the command cannot parse is a lane that did not report.
+**Your entire reply is the JSON array.** No prose before or after it, no code fence, no heading. A reply the command cannot parse is sent back to you once with the parse error; a second one that does not parse is a lane that did not report.

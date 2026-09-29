@@ -66,7 +66,11 @@ message: `exorcist:pattern-contention`, `exorcist:dead-code`,
 
 Write each reply verbatim to `$DIR/lanes/<lane>.json` — `contention.json`,
 `dead.json`, `duplicate.json`, `strata.json`. Do not repair a reply that does not
-parse; the merge records the lane as not reporting, which is the honest result.
+parse, and do not re-ask; the merge records the lane as not reporting, which is the
+honest result. This is where séance departs from `/exorcist:exorcise`, which re-dispatches
+a lane once on a parse failure: a lost séance lane costs its ghosts and nothing else —
+no register field hangs on one lane — the register names it, and a re-run recovers it.
+A second pass of a lane over the whole tree is the cost the retry would add.
 
 Without the Agent tool: run the four lanes yourself, one after another, same contract,
 and say in the report that it was a single pass.

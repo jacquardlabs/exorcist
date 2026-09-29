@@ -106,4 +106,4 @@ claim's text, and `next`, so those must stand alone.
 Reached hunks and satisfied claims produce no finding. An empty array means every
 hunk answered and every claim was met.
 
-**Your entire reply is the JSON array.** No prose before or after it, no code fence, no heading. A reply the command cannot parse is a lane that did not report.
+**Your entire reply is the JSON array.** No prose before or after it, no code fence, no heading. A reply the command cannot parse is sent back to you once with the parse error; a second one that does not parse is a lane that did not report.

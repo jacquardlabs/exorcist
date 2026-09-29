@@ -112,10 +112,15 @@ python3 "${CLAUDE_PLUGIN_ROOT}/scripts/report.py" merge <tmp>/report.json <tmp>/
 ```
 
 It strips exactly one code fence wrapped around each reply — that is transport, not
-content — and validates every finding against the contract. A lane with any invalid
-finding did not report: merge prints its errors; say which lane in the report, do not
-repair or re-ask. A `delete` or `revert` over a test line `leads.json` lists becomes
-`hold: "behavior change"` — deleting a test that still asserts a retired value hides
+content — and validates every finding against the contract. A lane whose errors read
+`does not parse` — prose around the array, most often — gets one second chance: send
+that lane the same context again with the parse error quoted, overwrite its findings
+file with the new reply verbatim, and merge again. One re-dispatch per lane, never a
+second, and never a repair of the reply yourself; a lane that still does not parse did
+not report. The trace lane is the one this is for: without it `out_of_intent_files` is
+null. A lane with any invalid finding did not report: merge prints its errors; say
+which lane in the report, do not repair or re-ask. A `delete` or `revert` over a test
+line `leads.json` lists becomes `hold: "behavior change"` — deleting a test that still asserts a retired value hides
 the break it reports. It writes the draft report — lanes, deduped findings, and
 `out_of_intent_files` — whether or not `--json` was given; §4 to §7 work from it.
 
@@ -193,11 +198,13 @@ Traced <n> · Reverted <n> · Rewritten <n> · Deleted <n> · Held <n>
 
 Concepts removed: <list> · Concepts kept: <new symbols that survived, each with its caller count>
 Tripwires: <the text line> — <one sentence per crossed wire>
+Re-dispatched: <each lane §3 sent again, and whether its second reply reported>
 Checks: <name: outcome> …
 Next: /simplify for cosmetic cleanup.
 ```
 
-Sections with nothing in them are omitted. A change with no findings gets the header,
+Sections with nothing in them, and the Re-dispatched line when no lane needed it,
+are omitted. A change with no findings gets the header,
 `Nothing to cast out — every hunk traced.`, the concepts line, and the tripwires line.
 The Held line's closing clause is the finding's `next`; a hold that answers to a claim
 also quotes it (`claim <n>: "<text>"`). An unmet claim has no `file:lines` and leads
