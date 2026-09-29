@@ -362,6 +362,29 @@ def test_merge_invalid_or_missing_trace_is_null():
         assert draft["lanes"]["trace"] == "did not report" and "trace" in errors
 
 
+def test_merge_prose_before_the_array_is_a_parse_failure_the_retry_recovers():
+    """A lane that wraps a clean array in prose fails to parse, which exorcise.md §3
+    re-dispatches once; validation failures stay final. The retried reply reports."""
+    with tempfile.TemporaryDirectory() as tmp:
+        paths = _lanes(tmp, trace="All hunks trace to claims 1-4; no findings.\n\n[]",
+                       abstraction=[_finding(action="bogus")])
+        draft, errors = report.merge(paths, {}, {}, False)
+        assert draft["lanes"]["trace"] == "did not report" and draft["out_of_intent_files"] is None, draft
+        assert errors["trace"][0].startswith("does not parse"), errors  # retryable
+        assert not any(e.startswith("does not parse") for e in errors["abstraction"]), errors  # final
+        paths[0].write_text("[]")  # the one re-dispatch's reply, written verbatim
+        draft, errors = report.merge(paths, {}, {}, False)
+    assert draft["lanes"]["trace"] == "reported" and draft["out_of_intent_files"] == [], draft
+    assert "trace" not in errors and "abstraction" in errors, errors
+
+
+def test_exorcise_lanes_are_told_about_the_one_retry():
+    retry = "sent back to you once with the parse error"
+    for name in ("intent-tracer", "abstraction-hunter", "deletion-scout", "threshold-salter"):
+        assert retry in (REPO / "agents" / f"{name}.md").read_text(encoding="utf-8"), name
+    assert "One re-dispatch per lane" in (REPO / "commands" / "exorcise.md").read_text(encoding="utf-8")
+
+
 def test_merge_non_utf8_lane_did_not_report():
     with tempfile.TemporaryDirectory() as tmp:
         paths = _lanes(tmp, trace=[_revert(file="x.ts")], abstraction=[])

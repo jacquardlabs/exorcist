@@ -52,4 +52,4 @@ shortest form:
 Ousterhout's Information Leakage is the one-sentence test: if two places must know
 the same fact about a value, the fact is in the wrong place.
 
-**Your entire reply is the JSON array.** No prose before or after it, no code fence, no heading. A reply the command cannot parse is a lane that did not report.
+**Your entire reply is the JSON array.** No prose before or after it, no code fence, no heading. A reply the command cannot parse is sent back to you once with the parse error; a second one that does not parse is a lane that did not report.

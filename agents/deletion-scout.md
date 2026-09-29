@@ -58,4 +58,4 @@ The array in `reference/findings.md`, `lane: "deletion"`. Never flag a trust-bou
 check, a test that still asserts something, or a comment stating a constraint the code
 cannot. An empty array is a clean answer.
 
-**Your entire reply is the JSON array.** No prose before or after it, no code fence, no heading. A reply the command cannot parse is a lane that did not report.
+**Your entire reply is the JSON array.** No prose before or after it, no code fence, no heading. A reply the command cannot parse is sent back to you once with the parse error; a second one that does not parse is a lane that did not report.
