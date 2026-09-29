@@ -127,7 +127,7 @@ are not stored; they derive from `applied` and `held`.
   the list keeps the number auditable. `report.py merge` writes it; the command never
   does. Null exactly when `lanes.trace` did not report.
 
-  It stands in for studious plan-drift's `out-of-plan-file` (a changed file no task
+  It replaced studious plan-drift's `out-of-plan-file` (a changed file no task
   path names). Two differences, both deliberate. It is content-based, not name-based:
   a file no plan line names whose hunks reach a claim is not counted, and a named file
   whose hunks reach none is. It is counted before apply, so it measures how far the
