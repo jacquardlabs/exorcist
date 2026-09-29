@@ -2,6 +2,19 @@
 
 <!-- version list -->
 
+## v0.8.1 (2026-09-29)
+
+### Bug Fixes
+
+- Re-dispatch a lane once when its reply does not parse
+  ([`ba23e2d`](https://github.com/jacquardlabs/exorcist/commit/ba23e2db7ba0b843073eee5e0f2f60f425ba1473))
+
+### Chores
+
+- Remove studious references
+  ([`6676a10`](https://github.com/jacquardlabs/exorcist/commit/6676a10a5f4b530b75425c546b45d091b76a49ab))
+
+
 ## v0.8.0 (2026-09-23)
 
 ### Bug Fixes
